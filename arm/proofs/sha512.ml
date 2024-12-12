@@ -2,6 +2,49 @@
 
 needs "Library/words.ml";;
 
+(*****************************************************************************)
+
+parse_as_prefix "~~";;
+override_interface("~~",`word_not:N word->N word`);;
+parse_as_infix("&&",(13,"right"));;
+override_interface("&&",`word_and:N word->N word->N word`);;
+parse_as_infix("||",(13,"right"));;
+override_interface("||",`word_or:N word->N word->N word`);;
+parse_as_infix("^^",(13,"right"));;
+override_interface("^^",`word_xor:N word->N word->N word`);;
+
+overload_interface("+",`word_add:N word->N word->N word`);;
+
+let Ch_DEF = new_definition
+ `Ch(x,y,z):int64 = (x && y) ^^ (~~x && z)`;;
+
+let Maj_DEF = new_definition
+ `Maj(x,y,z):int64 = (x && y) ^^ (x && z) ^^ (y && z)`;;
+
+let Sigma0_DEF = new_definition
+ `Sigma0(x):int64 = word_ror x 28 ^^ word_ror x 34 ^^ word_ror x 39`;;
+
+let Sigma1_DEF = new_definition
+ `Sigma1(x):int64 = word_ror x 14 ^^ word_ror x 18 ^^ word_ror x 41`;;
+
+let sigma0 = new_definition
+ `sigma0(x):int64 = word_ror x 1 ^^ word_ror x 8 ^^ word_ushr x 7`;;
+
+let sigma1 = new_definition
+ `sigma1(x):int64 = word_ror x 19 ^^ word_ror x 61 ^^ word_ushr x 6`;;
+
+unparse_as_prefix "~~";;
+remove_interface("~~");;
+unparse_as_infix("&&");;
+remove_interface("&&");;
+unparse_as_infix("||");;
+remove_interface("||");;
+unparse_as_infix("^^");;
+remove_interface("^^");;
+remove_interface("++");;
+
+(*****************************************************************************)
+
 (*************************)
 (**                     **)
 (**  SHA512 INTRINSICS  **)
@@ -38,26 +81,32 @@ let sha512h = define
           let x = n in
           let y = m in
           let w = d in
-          let msig1 : 64 word = word_xor (word_ror (word_subword y (64, 64)) 14)
-                                         (word_xor (word_ror (word_subword y (64, 64)) 18)
-                                                   (word_ror (word_subword y (64, 64)) 41)) in
+          // let msig1 : 64 word = word_xor (word_ror (word_subword y (64, 64)) 14)
+          //                                (word_xor (word_ror (word_subword y (64, 64)) 18)
+          //                                          (word_ror (word_subword y (64, 64)) 41)) in
+          let msig1 : 64 word = Sigma1 (word_subword y (64, 64)) in
 
-          let vtmp1 : 64 word = word_xor (word_and (word_subword y (64, 64))
-                                                   (word_subword x ( 0, 64)))
-                                         (word_and (word_not (word_subword y (64, 64)))
-                                                   (word_subword x (64, 64))) in
+          // let vtmp1 : 64 word = word_xor (word_and (word_subword y (64, 64))
+          //                                          (word_subword x ( 0, 64)))
+          //                                (word_and (word_not (word_subword y (64, 64)))
+          //                                          (word_subword x (64, 64))) in
+          let vtmp1 : 64 word = Ch((word_subword y (64, 64)),
+                                   (word_subword x ( 0, 64)),
+                                   (word_subword x (64, 64))) in
           let vtmp1 : 64 word = word_add vtmp1
                                          (word_add msig1
                                                    (word_subword w (64, 64))) in
 
           let tmp   : 64 word = word_add vtmp1 (word_subword y ( 0, 64)) in
 
-          let msig1 : 64 word = word_xor (word_ror tmp 14)
-                                         (word_xor (word_ror tmp 18)
-                                                   (word_ror tmp 41)) in
+          // let msig1 : 64 word = word_xor (word_ror tmp 14)
+          //                                (word_xor (word_ror tmp 18)
+          //                                          (word_ror tmp 41)) in
+          let msig1 : 64 word = Sigma1 tmp in
 
-          let vtmp0 : 64 word = word_xor (word_and tmp (word_subword y (64, 64)))
-                                         (word_and (word_not tmp) (word_subword x ( 0, 64))) in
+          // let vtmp0 : 64 word = word_xor (word_and tmp (word_subword y (64, 64)))
+          //                                (word_and (word_not tmp) (word_subword x ( 0, 64))) in
+          let vtmp0 : 64 word = Ch(tmp, (word_subword y (64, 64)), (word_subword x (0, 64))) in
           let vtmp0 : 64 word = word_add vtmp0
                                          (word_add msig1
                                                    (word_subword w ( 0, 64))) in
@@ -93,30 +142,36 @@ let sha512h2 = define
           let x = n in
           let y = m in
           let w = d in
-          let nsig0 : 64 word = word_xor (word_ror (word_subword y ( 0, 64)) 28)
-                                         (word_xor (word_ror (word_subword y ( 0, 64)) 34)
-                                                   (word_ror (word_subword y ( 0, 64)) 39)) in
+          // let nsig0 : 64 word = word_xor (word_ror (word_subword y ( 0, 64)) 28)
+          //                                (word_xor (word_ror (word_subword y ( 0, 64)) 34)
+          //                                          (word_ror (word_subword y ( 0, 64)) 39)) in
+          let nsig0 : 64 word = Sigma0 (word_subword y (0, 64)) in
 
-          let vtmp1 : 64 word = word_xor (word_and (word_subword x ( 0, 64))
-                                                   (word_subword y (64, 64)))
-                                         (word_xor (word_and (word_subword x ( 0, 64))
-                                                             (word_subword y ( 0, 64)))
-                                                   (word_and (word_subword y (64, 64))
-                                                             (word_subword y ( 0, 64)))) in
+          // let vtmp1 : 64 word = word_xor (word_and (word_subword x ( 0, 64))
+          //                                          (word_subword y (64, 64)))
+          //                                (word_xor (word_and (word_subword x ( 0, 64))
+          //                                                    (word_subword y ( 0, 64)))
+          //                                          (word_and (word_subword y (64, 64))
+          //                                                    (word_subword y ( 0, 64)))) in
+          let vtmp1 : 64 word = Maj((word_subword x ( 0, 64)),
+                                    (word_subword y (64, 64)),
+                                    (word_subword y ( 0, 64))) in
           let vtmp1 : 64 word = word_add vtmp1
                                          (word_add nsig0
                                                    (word_subword w (64, 64))) in
 
 
-          let nsig0 : 64 word = word_xor (word_ror vtmp1 28)
-                                         (word_xor (word_ror vtmp1 34)
-                                                   (word_ror vtmp1 39)) in
+          // let nsig0 : 64 word = word_xor (word_ror vtmp1 28)
+          //                                (word_xor (word_ror vtmp1 34)
+          //                                          (word_ror vtmp1 39)) in
+          let nsig0 : 64 word = Sigma0 vtmp1 in
 
-          let vtmp0 : 64 word = word_xor (word_and vtmp1 (word_subword y ( 0, 64)))
-                                         (word_xor (word_and vtmp1
-                                                             (word_subword y (64, 64)))
-                                                   (word_and (word_subword y (64, 64))
-                                                             (word_subword y ( 0, 64)))) in
+          // let vtmp0 : 64 word = word_xor (word_and vtmp1 (word_subword y ( 0, 64)))
+          //                                (word_xor (word_and vtmp1
+          //                                                    (word_subword y (64, 64)))
+          //                                          (word_and (word_subword y (64, 64))
+          //                                                    (word_subword y ( 0, 64)))) in
+          let vtmp0 : 64 word = Maj(vtmp1, (word_subword y ( 0, 64)), (word_subword y (64, 64))) in
           let vtmp0 : 64 word = word_add vtmp0
                                          (word_add nsig0
                                                    (word_subword w ( 0, 64))) in
@@ -146,18 +201,20 @@ let sha512su0 = define
   `sha512su0 (d:int128) (n:int128) : int128 =
           let w = d in
           let x = n in
-          let sig0 : 64 word = word_xor (word_ror (word_subword w (64, 64)) 1)
-                                        (word_xor (word_ror (word_subword w (64, 64)) 8)
-                                                  ((word_join:7 word->57 word->64 word)
-                                                   (word 0 : 7 word)
-                                                   (word_subword w (71, 57)))) in
+          // let sig0 : 64 word = word_xor (word_ror (word_subword w (64, 64)) 1)
+          //                               (word_xor (word_ror (word_subword w (64, 64)) 8)
+          //                                         ((word_join:7 word->57 word->64 word)
+          //                                          (word 0 : 7 word)
+          //                                          (word_subword w (71, 57)))) in
+          let sig0 : 64 word = sigma0 (word_subword w (64, 64)) in
           let tmp0 : 64 word = word_add (word_subword w (0, 64)) sig0 in
 
-          let sig0 : 64 word = word_xor (word_ror (word_subword x (0, 64)) 1)
-                                        (word_xor (word_ror (word_subword x ( 0, 64)) 8)
-                                                  ((word_join:7 word->57 word->64 word)
-                                                   (word 0 : 7 word)
-                                                   (word_subword x (7, 57)))) in
+          // let sig0 : 64 word = word_xor (word_ror (word_subword x (0, 64)) 1)
+          //                               (word_xor (word_ror (word_subword x ( 0, 64)) 8)
+          //                                         ((word_join:7 word->57 word->64 word)
+          //                                          (word 0 : 7 word)
+          //                                          (word_subword x (7, 57)))) in
+          let sig0 : 64 word = sigma0 (word_subword x (0, 64)) in
 
           let tmp1 : 64 word = word_add (word_subword w (64, 64)) sig0 in
 
@@ -189,21 +246,23 @@ let sha512su1 = define
           let x = n in
           let y = m in
           let w = d in
-          let sig1 : 64 word = word_xor (word_ror (word_subword x (64, 64)) 19)
-                                        (word_xor (word_ror (word_subword x (64, 64)) 61)
-                                                  ((word_join:6 word->58 word->64 word)
-                                                   (word 0 : 6 word)
-                                                   (word_subword x (70, 58)))) in
+          // let sig1 : 64 word = word_xor (word_ror (word_subword x (64, 64)) 19)
+          //                               (word_xor (word_ror (word_subword x (64, 64)) 61)
+          //                                         ((word_join:6 word->58 word->64 word)
+          //                                          (word 0 : 6 word)
+          //                                          (word_subword x (70, 58)))) in
+          let sig1 : 64 word = sigma1 (word_subword x (64, 64)) in
 
           let tmp1 : 64 word = word_add (word_subword w (64, 64))
                                         (word_add sig1
                                                   (word_subword y (64, 64))) in
 
-          let sig1 : 64 word = word_xor (word_ror (word_subword x (0, 64)) 19)
-                                        (word_xor (word_ror (word_subword x ( 0, 64)) 61)
-                                                  ((word_join:6 word->58 word->64 word)
-                                                   (word 0 : 6 word)
-                                                   (word_subword x (6, 58)))) in
+          // let sig1 : 64 word = word_xor (word_ror (word_subword x (0, 64)) 19)
+          //                               (word_xor (word_ror (word_subword x ( 0, 64)) 61)
+          //                                         ((word_join:6 word->58 word->64 word)
+          //                                          (word 0 : 6 word)
+          //                                          (word_subword x (6, 58)))) in
+          let sig1 : 64 word = sigma1 (word_subword x (0, 64)) in
 
           let tmp0 : 64 word = word_add (word_subword w ( 0, 64))
                                         (word_add sig1
