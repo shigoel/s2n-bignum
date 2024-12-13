@@ -146,7 +146,7 @@ let sha512h2 = define
           //                                (word_xor (word_ror (word_subword y ( 0, 64)) 34)
           //                                          (word_ror (word_subword y ( 0, 64)) 39)) in
           let nsig0 : 64 word = Sigma0 (word_subword y (0, 64)) in
-
+          
           // let vtmp1 : 64 word = word_xor (word_and (word_subword x ( 0, 64))
           //                                          (word_subword y (64, 64)))
           //                                (word_xor (word_and (word_subword x ( 0, 64))
