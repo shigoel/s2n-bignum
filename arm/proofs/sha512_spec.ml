@@ -185,3 +185,31 @@ let sha512 = define
  `sha512 (m:num->num->int64) (i:num) =
     if i = 0 then h_init
     else sha_block (m (i - 1)) (sha512 m (i - 1))`;;
+
+(* --------------------------------------------------------------- *)
+(*     Conversions for reducing SHA512 specification functions     *)
+(* --------------------------------------------------------------- *)
+
+let MESSAGE_SCHEDULE_WORD_RED_CONV =
+  REWR_CONV message_schedule_word THENC
+  DEPTH_CONV sigma1_RED_CONV THENC
+  DEPTH_CONV sigma0_RED_CONV THENC
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
+
+(* let tmp = MESSAGE_SCHEDULE_WORD_RED_CONV `message_schedule_word (word 0xaa) (word 0xbb) (word 0xcc) (word 0xdd)`;; *)
+
+let COMPRESSION_T1_RED_CONV =
+  REWR_CONV compression_t1 THENC
+  DEPTH_CONV Sigma1_RED_CONV THENC
+  DEPTH_CONV Ch_RED_CONV THENC
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;  
+
+(* let tmp = COMPRESSION_T1_RED_CONV `compression_t1 (word 0xaa) (word 0xbb) (word 0xcc) (word 0xdd) (word 0xee) (word 0xff)`;; *)
+
+let COMPRESSION_T2_RED_CONV =
+  REWR_CONV compression_t2 THENC
+  DEPTH_CONV Sigma0_RED_CONV THENC
+  DEPTH_CONV Maj_RED_CONV THENC
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;  
+
+(* let tmp = COMPRESSION_T2_RED_CONV `compression_t2 (word 0xaa) (word 0xbb) (word 0xcc)`;;   *)

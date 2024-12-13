@@ -338,6 +338,10 @@ e(REWRITE_TAC[NONOVERLAPPING_CLAUSES; PAIRWISE; ALL; fst SHA512_HW_EXEC; BIGNUM_
 e(REPEAT STRIP_TAC);;
 e(ENSURES_INIT_TAC "s0");;
 
+(* Reduce 16*<n> in the assumptions to a concrete number, otherwise 
+   we may lose the loads' effects during simulation. *)
+e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)));;
+
 (* e(BIGNUM_DIGITIZE_TAC "i_" `read (memory :> bytes (word input_base, 8 * 16)) s0`);; *)
 (* e(BIGNUM_DIGITIZE_TAC "h_" `read (memory :> bytes (word hash_base, 8 * 8)) s0`);; *)
 (* e(BIGNUM_DIGITIZE_TAC "k_" `read (memory :> bytes (word ktbl_base, 8 * 80)) s0`);; *)
@@ -355,25 +359,52 @@ e(MAP_EVERY (fun n -> ARM_STEPS_TAC SHA512_HW_EXEC [n] THEN
 e(ARM_STEPS_TAC SHA512_HW_EXEC (16--16));;
 (* Now, we are poised to execute the body of the loop. *)
 
-(* 0x3cc10478;  ldr	   q24, [x3], #16 *)
+(* 0x3cc10478;  ldr q24, [x3], #16 *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (17--25));; 
 e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
 e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]));;
 
 (* 1/32: 12 instruction sub-block beginning at
-    0x3cc10479;  ldr	   q25, [x3], #16  *)
+    0x3cc10479;  ldr q25, [x3], #16  *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (26--37));; 
 e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
 e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS; 
                                SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]));;
+e(ABBREV_TAC `m0    = (message_schedule_word i14 i9 i1 i0)`);;
+e(ABBREV_TAC `m1    = (message_schedule_word i15 i10 i2 i1)`);;
+e(ABBREV_TAC `ct1_0 = (compression_t1 h_e h_f h_g h_h K_0 i0)`);;
+e(ABBREV_TAC `ct2_0 = (compression_t2 h_a h_c h_b)`);;
+e(ABBREV_TAC `ct1_1 = (compression_t1 (h_d + ct1_0) h_e h_f h_g K_1 i1)`);;
+e(ABBREV_TAC `ct2_1 = (compression_t2 (ct2_0 + ct1_0) h_a h_b)`);;
 
 (* 2/32: 12 instruction sub-block beginning at
-   0x3cc10478; ldr	   q24, [x3], #16 *)
+   0x3cc10478; ldr q24, [x3], #16 *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (38--49));; 
 e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
 e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS; 
                               SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]));;
+e(ABBREV_TAC `m2    = (message_schedule_word m0 i11 i3 i2)`);;
+e(ABBREV_TAC `m3    = (message_schedule_word m1 i12 i4 i3)`);;
+e(ABBREV_TAC `ct1_2 = (compression_t1 (h_c + ct1_1) (h_d + ct1_0) h_e h_f K_2 i2)`);;
+e(ABBREV_TAC `ct1_3 = (compression_t1 (h_b + ct1_2) (h_c + ct1_1) (h_d + ct1_0) h_e K_3 i3)`);;
+e(ABBREV_TAC `ct2_2 = (compression_t2 (ct2_1 + ct1_1) h_a (ct2_0 + ct1_0))`);;
+e(ABBREV_TAC `ct2_3 = (compression_t2 (ct2_2 + ct1_2) (ct2_1 + ct1_1) (ct2_0 + ct1_0))`);;
+
+(* 3/32: 12 instruction sub-block beginning at
+   0x3cc10479; 	ldr q25, [x3], #16 *)
+e(ARM_STEPS_TAC SHA512_HW_EXEC (50--61));; 
+e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
+e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS; 
+                                 SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]));;
+e(ABBREV_TAC `m4    = (message_schedule_word m2 i13 i5 i4)`);;
+e(ABBREV_TAC `m5    = (message_schedule_word m3 i14 i6 i5)`);;
+e(ABBREV_TAC `ct1_4 = (compression_t1 (h_a + ct1_3) (h_b + ct1_2) (h_c + ct1_1) (h_d + ct1_0) K_4 i4)`);;
+e(ABBREV_TAC `ct1_5 = (compression_t1 ((ct2_0 + ct1_0) + ct1_4) (h_a + ct1_3) (h_b + ct1_2) (h_c + ct1_1) K_5 i5)`);;
+e(ABBREV_TAC `ct2_4 = (compression_t2 (ct2_3 + ct1_3) (ct2_1 + ct1_1) (ct2_2 + ct1_2) + ct1_4)`);;
+e(ABBREV_TAC `ct2_5 = (compression_t2 ct2_4 (ct2_3 + ct1_3) (ct2_2 + ct1_2) + ct1_5)`);;
+
 
 (* ... *)
+
 e(ENSURES_FINAL_STATE_TAC);;
 e(ASM_REWRITE_TAC[]);;

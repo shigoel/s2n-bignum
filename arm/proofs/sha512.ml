@@ -27,10 +27,10 @@ let Sigma0_DEF = new_definition
 let Sigma1_DEF = new_definition
  `Sigma1(x):int64 = word_ror x 14 ^^ word_ror x 18 ^^ word_ror x 41`;;
 
-let sigma0 = new_definition
+let sigma0_DEF = new_definition
  `sigma0(x):int64 = word_ror x 1 ^^ word_ror x 8 ^^ word_ushr x 7`;;
 
-let sigma1 = new_definition
+let sigma1_DEF = new_definition
  `sigma1(x):int64 = word_ror x 19 ^^ word_ror x 61 ^^ word_ushr x 6`;;
 
 unparse_as_prefix "~~";;
@@ -276,6 +276,36 @@ let sha512su1 = define
 (** CONVERSIONS FOR REDUCING SHA512 INTRINSICS **)
 (**                                            **)
 (************************************************)
+
+let Ch_RED_CONV =
+  REWR_CONV Ch_DEF THENC
+  DEPTH_CONV (let_CONV) THENC
+  WORD_REDUCE_CONV;;
+
+let Maj_RED_CONV =
+  REWR_CONV Maj_DEF THENC
+  DEPTH_CONV (let_CONV) THENC
+  WORD_REDUCE_CONV;;
+  
+let Sigma0_RED_CONV =
+  REWR_CONV Sigma0_DEF THENC
+  DEPTH_CONV (let_CONV) THENC
+  WORD_REDUCE_CONV;; 
+
+let Sigma1_RED_CONV =
+  REWR_CONV Sigma1_DEF THENC
+  DEPTH_CONV (let_CONV) THENC
+  WORD_REDUCE_CONV;; 
+  
+let sigma0_RED_CONV =
+  REWR_CONV sigma0_DEF THENC
+  DEPTH_CONV (let_CONV) THENC
+  WORD_REDUCE_CONV;; 
+
+let sigma1_RED_CONV =
+  REWR_CONV sigma1_DEF THENC
+  DEPTH_CONV (let_CONV) THENC
+  WORD_REDUCE_CONV;;
 
 let SHA512H_RED_CONV =
         REWR_CONV sha512h THENC
