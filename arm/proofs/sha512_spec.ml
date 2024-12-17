@@ -147,20 +147,51 @@ let message_schedule_word = define
   `message_schedule_word w1 w2 w3 w4 =
     sigma1 w1 + w2 + sigma0 w3 + w4`;;
 
-let sha512_sched = define
- `sha512_sched (m:num->int64) (i:num) : int64 =
+let message_schedule = define
+ `message_schedule (m:num->int64) (i:num) : int64 =
       if i < 16 then m i
-      else message_schedule_word (sha512_sched m (i - 2))
-                                 (sha512_sched m (i - 7))
-                                 (sha512_sched m (i - 15))
-                                 (sha512_sched m (i - 16))`;;
+      else message_schedule_word (message_schedule m (i - 2))
+                                 (message_schedule m (i - 7))
+                                 (message_schedule m (i - 15))
+                                 (message_schedule m (i - 16))`;;
 
 let compression_t1 = define
   `compression_t1 e f g h kt wt = h + Sigma1(e) + Ch(e,f,g) + kt + wt`;;
 
 let compression_t2 = define
   `compression_t2 a b c = Sigma0(a) + Maj(a,b,c)`;;
-    
+
+let compression_update = define
+ `compression_update (a,b,c,d,e,f,g,h) ki wi =
+    let t1 = compression_t1 e f g h ki wi in
+    let t2 = compression_t2 a b c in
+    (t1 + t2, a, b, c, d + t1, e, f, g)`;;
+
+let compression = define
+  `compression (i:num) (a,b,c,d,e,f,g,h) (m:num->int64) =
+      if i < 80 then
+        let ki = K i in
+        let wi = message_schedule m i in
+        let update = compression_update (a,b,c,d,e,f,g,h) (K i) wi in
+        compression (i + 1) update m
+      else 
+        (a,b,c,d,e,f,g,h)`;;
+
+let add8 = define
+ `add8 (a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64)
+        (a',b',c',d',e',f',g',h') =
+       (a+a',b+b',c+c',d+d',e+e',f+f',g+g',h+h')`;;
+
+let sha512_block = define
+ `sha512_block (m:num->int64) hash =
+    let hash' = compression 0 hash m in
+    add8 hash' hash`;;
+
+let sha512 = define 
+  `sha512 (m:num->num->int64) (i:num) = 
+    if i = 0 then h_init
+    else sha512_block (m (i - 1)) (sha512 m (i - 1))`;;
+
 let sha512_iter = new_definition
  `sha512_iter (w:num->int64) (a,b,c,d,e,f,g,h) (i:num) =
     let t1 = compression_t1 e f g h (K i) (w i) in
@@ -172,23 +203,42 @@ let sha_inner = define
         if i = 0 then (a, b, c, d, e, f, g, h)
         else sha512_iter w (sha_inner w (a, b, c, d, e, f, g, h) (i - 1)) i`;;
 
-let add8 = define
- `add8 (a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64)
-        (a',b',c',d',e',f',g',h') =
-       (a+a',b+b',c+c',d+d',e+e',f+f',g+g',h+h')`;;
-
 let sha_block = define
  `sha_block (m:num->int64) hashes =
-        add8 (sha_inner (sha512_sched m) hashes 80) hashes`;;
+        add8 (sha_inner (message_schedule m) hashes 80) hashes`;;
 
-let sha512 = define
- `sha512 (m:num->num->int64) (i:num) =
+let sha512_alt = define
+ `sha512_alt (m:num->num->int64) (i:num) =
     if i = 0 then h_init
-    else sha_block (m (i - 1)) (sha512 m (i - 1))`;;
+    else sha_block (m (i - 1)) (sha512_alt m (i - 1))`;;    
 
 (* --------------------------------------------------------------- *)
 (*     Conversions for reducing SHA512 specification functions     *)
 (* --------------------------------------------------------------- *)
+
+let h_init_RED_CONV =
+  REWRITE_CONV [h_init; h_a; h_b; h_c; h_d; h_e; h_f; h_g; h_h];;
+
+(* let tmp = h_init_RED_CONV `h_init`;; *)
+
+let K_RED_CONV =
+  REWRITE_CONV 
+     [K_DEF; ktbl_list; 
+      K_0;  K_1;  K_2;  K_3;  K_4;  K_5;  K_6;  K_7;  K_8;  K_9;
+      K_10; K_11; K_12; K_13; K_14; K_15; K_16; K_17; K_18; K_19;
+      K_20; K_21; K_22; K_23; K_24; K_25; K_26; K_27; K_28; K_29;
+      K_30; K_31; K_32; K_33; K_34; K_35; K_36; K_37; K_38; K_39;
+      K_40; K_41; K_42; K_43; K_44; K_45; K_46; K_47; K_48; K_49;
+      K_50; K_51; K_52; K_53; K_54; K_55; K_56; K_57; K_58; K_59;
+      K_60; K_61; K_62; K_63; K_64; K_65; K_66; K_67; K_68; K_69;
+      K_70; K_71; K_72; K_73; K_74; K_75; K_76; K_77; K_78; K_79;
+      EL_CONS] THENC 
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
+
+(* let tmp = K_RED_CONV `K 0`;; *)
+(* let tmp = K_RED_CONV `K 1`;; *)
+(* let tmp = K_RED_CONV `K 8`;; *)
+(* let tmp = K_RED_CONV `K 79`;; *)
 
 let MESSAGE_SCHEDULE_WORD_RED_CONV =
   REWR_CONV message_schedule_word THENC
@@ -197,6 +247,27 @@ let MESSAGE_SCHEDULE_WORD_RED_CONV =
   DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
 
 (* let tmp = MESSAGE_SCHEDULE_WORD_RED_CONV `message_schedule_word (word 0xaa) (word 0xbb) (word 0xcc) (word 0xdd)`;; *)
+
+(*
+let tmp = sha512_sched_RED_CONV 
+          `sha512_sched (\i. EL i [word 0x6162638000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000000;
+                                   word 0x0000000000000018])
+                          15`;;  
+*)
 
 let COMPRESSION_T1_RED_CONV =
   REWR_CONV compression_t1 THENC
@@ -210,6 +281,27 @@ let COMPRESSION_T2_RED_CONV =
   REWR_CONV compression_t2 THENC
   DEPTH_CONV Sigma0_RED_CONV THENC
   DEPTH_CONV Maj_RED_CONV THENC
-  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;  
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
 
 (* let tmp = COMPRESSION_T2_RED_CONV `compression_t2 (word 0xaa) (word 0xbb) (word 0xcc)`;;   *)
+
+let compression_update_RED_CONV =
+  REWR_CONV compression_update THENC 
+  REPEATC (RAND_CONV (COMPRESSION_T1_RED_CONV ORELSEC COMPRESSION_T2_RED_CONV) THENC let_CONV) THENC
+  (* K_RED_CONV THENC *)
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
+
+(*
+let tmp = compression_update_RED_CONV 
+  `compression_update 
+      (word 0, word 1, word 2, word 3, word 4, word 5, word 6, word 7) 
+      (word 0xaa)
+      (word 0xbb)`;;
+*)      
+
+(*  
+let tmp = compression_update_RED_CONV 
+    `compression_update (\i. EL i ([(word 0xaa); (word 0xbb); (word 0xcc); (word 0xdd)]:((64)word)list)) 
+                 (word 0, word 1, word 2, word 3, word 4, word 5, word 6, word 7) 
+                 2`;;
+*)
