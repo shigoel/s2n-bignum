@@ -195,7 +195,7 @@ let SHA512H2_RULE = prove(
   (y1:(64)word) (y0:(64)word)
   (z1:(64)word) (z0:(64)word).
   sha512h2 (word_join x1 x0) (word_join y1 y0) (word_join z1 z0) = 
-  word_join ((compression_t2 z0 z1 y0) + x1) 
+  word_join (x1 + (compression_t2 z0 z1 y0)) 
             ((compression_t2 (x1 + (compression_t2 z0 z1 y0)) z0 z1) + x0) :(128)word`,
   REPEAT STRIP_TAC THEN
   REWRITE_TAC[sha512h2; compression_t2] THEN
@@ -345,50 +345,6 @@ let MESSAGE_SCHEDULE_17_RULE = prove(
     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
     REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
 
-let MESSAGE_SCHEDULE_18_RULE = prove(
-  `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.   
-     (message_schedule
-        (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-        18) =
-        message_schedule_word (message_schedule_word i14 i9 i1 i0) i11 i3 i2`,
-   REPEAT STRIP_TAC THEN
-   ONCE_ASM_REWRITE_TAC [message_schedule] THEN
-   CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-   REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES; MESSAGE_SCHEDULE_16_RULE]);; 
-
-let MESSAGE_SCHEDULE_19_RULE = prove(
-    `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.   
-       (message_schedule
-          (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-          19) =
-          message_schedule_word (message_schedule_word i15 i10 i2 i1) i12 i4 i3`,
-     REPEAT STRIP_TAC THEN
-     ONCE_ASM_REWRITE_TAC [message_schedule] THEN
-     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-     REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES; 
-                 MESSAGE_SCHEDULE_16_RULE; 
-                 MESSAGE_SCHEDULE_17_RULE;
-                 MESSAGE_SCHEDULE_18_RULE]);;
-
-let MESSAGE_SCHEDULE_20_RULE = prove(
-    `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.   
-       (message_schedule
-          (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-          20) =
-          message_schedule_word
-            (message_schedule_word (message_schedule_word i14 i9 i1 i0) i11 i3 i2)
-            i13
-            i5
-            i4`,
-     REPEAT STRIP_TAC THEN
-     ONCE_ASM_REWRITE_TAC [message_schedule] THEN
-     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-     REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES; 
-                 MESSAGE_SCHEDULE_16_RULE; 
-                 MESSAGE_SCHEDULE_17_RULE;
-                 MESSAGE_SCHEDULE_18_RULE;
-                 MESSAGE_SCHEDULE_19_RULE]);;            
-
 (* Abbreviates the first terms matching compression_t1 and compression_t2 in the goal. 
 let ABBREV_CT1_CT2_TERM n (asl, w as gl) = 
  let ty = `:((64)word)` in
@@ -408,7 +364,7 @@ let ABBREV_CT1_CT2_TERM n (asl, w as gl) =
 extra_word_CONV := 
   (GEN_REWRITE_CONV I [WORD_BITMANIP_SIMP_LEMMAS; 
                        REV64_BITMANIP_SIMP_LEMMAS; 
-                       SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE;
+                       SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE;                       
                        MESSAGE_SCHEDULE_16_RULE]) ::
                        !extra_word_CONV;;
 
@@ -450,10 +406,8 @@ let ABBREV_FIRST_TERMS_IN_ASM_TAC (n:int) (var:string) (fn:term) (asl, w as gl) 
   ABBREV_TAC (mk_eq(v, occ)) gl;;
 
 (*
-n: argument of the compression function call in the context.
-   n >= 18.
+n: argument of the call of the compression function in the context.
 *)  
-
 let COMPRESSION_UNWIND_TAC (n:int) : tactic =
   if n < 18 || n > 80 then 
     failwith "COMPRESSION_UNWIND_TAC: constraint on n violated! Constraint: 18 <= n <= 80."
@@ -659,7 +613,7 @@ e(USE_THEN "H_ms_17"
                 let th' = REWRITE_RULE [MESSAGE_SCHEDULE_17_RULE] th in
                 ASSUME_TAC th'));;
 
-(* Snorkeling COMPRESSION_UNWIND_TAC for better interactive experience. *)
+(* Snorkeling COMPRESSION_UNWIND_TAC for a better interactive experience. *)
 e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (18--40));;
 e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (41--60));;
 e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (61--79));;
@@ -672,12 +626,7 @@ e(RULE_ASSUM_TAC(REWRITE_RULE[add8; PAIR_EQ]));;
 
 (* #### End of simplifying the specification function compression. #### *)
 
-(* e(BIGNUM_DIGITIZE_TAC "i_" `read (memory :> bytes (word input_base, 8 * 16)) s0`);; *)
-(* e(BIGNUM_DIGITIZE_TAC "h_" `read (memory :> bytes (word hash_base, 8 * 8)) s0`);; *)
-(* e(BIGNUM_DIGITIZE_TAC "k_" `read (memory :> bytes (word ktbl_base, 8 * 80)) s0`);; *)
-
-(* e(ARM_STEPS_TAC SHA512_HW_EXEC (1--514));; *)
-(* e(ARM_VSTEPS_TAC SHA512_HW_EXEC (1--3));; *)
+(* #### Begin Symbolic Simulation. #### *)
 
 e(ARM_STEPS_TAC SHA512_HW_EXEC (1--14));;
 (* (FIXME) Speed this up.
@@ -691,24 +640,41 @@ e(ARM_STEPS_TAC SHA512_HW_EXEC (16--16));;
 (* Now, we are poised to execute the body of the loop. *)
 
 (* 0x3cc10478;  ldr q24, [x3], #16 *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (17--25));; 
+e(ARM_STEPS_TAC SHA512_HW_EXEC (17--25));;
 
-(* 1/32: 12 instruction sub-block beginning at
-    0x3cc10479;  ldr q25, [x3], #16  *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (26--37));; 
+(* A crude but quick way of checking if structure sharing is broken: 
+   the following functions ought to occur in the goal the specified number of 
+   times (stemming from the specification). If the count is more, then 
+   the program isn't generating identical terms. 
 
-(* 2/32: 12 instruction sub-block beginning at
-   0x3cc10478; ldr q24, [x3], #16 *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (38--49));; 
+   compression_t1: 80
+   compression_t2: 80
+   message_schedule_word: 64
+*)
 
-(* 3/32: 12 instruction sub-block beginning at
-   0x3cc10479; 	ldr q25, [x3], #16 *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (50--61));; 
+(* (1--32)/32: 5  12-instruction sub-blocks *)
+e(ARM_STEPS_TAC SHA512_HW_EXEC (26--37));;
+e(ARM_STEPS_TAC SHA512_HW_EXEC (38--49));;
+(*
+Structure sharing broken; e.g.:
+program: compression_t2 (ct2_1 + ct1_1) (ct1_0 + ct2_0) h_a)
+spec:    compression_t2 (ct1_1 + ct2_1) (ct1_0 + ct2_0) h_a = ct2_2
+*)
 
-e(ARM_STEPS_TAC SHA512_HW_EXEC (62--200));; 
+(* ... TODO ... (Total instructions: 514) *)
 
 
-(* ... *)
+(* (1--7)/7: 7  11-instruction sub-blocks *)
+
+(* 1/1: 1  11-instruction sub-block *)
+
+(* 1/1: 1  5-instruction sub-block *)
+
+(* Now we are at the end of the loop. *)
+
+(* 1/1: 1  6-instruction sub-block *)
+
+(* #### End Symbolic Simulation. #### *)
 
 e(ENSURES_FINAL_STATE_TAC);;
 e(ASM_REWRITE_TAC[]);;
