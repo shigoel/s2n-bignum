@@ -179,26 +179,32 @@ let SHA512SU1_SU0 = prove(
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS] THEN
   REWRITE_TAC[WORD_ADD; WORD_ADD_AC]);;
-
-let MAJ_ABC_EQ_CAB = prove(
-  `!(a:(64)word) (b:(64)word) (c:(64)word).
-    Maj(a,b,c) = Maj(c,a,b)`,
-    REWRITE_TAC[Maj_DEF] THEN
-    CONV_TAC WORD_BLAST);;  
+    
+(* 
+Note that
+Maj(a,b,c) = Maj(a,c,b) = Maj(b,a,c) = Maj(b,c,a) = Maj(c,a,b) = Maj(c,b,a). 
+*)  
+let MAJ_ABC_EQ_CBA = prove(
+   `!(a:(64)word) (b:(64)word) (c:(64)word).
+     Maj(a,b,c) = Maj(c,b,a)`,
+     REWRITE_TAC[Maj_DEF] THEN
+     CONV_TAC WORD_BLAST);;      
 
 let SHA512H2_RULE = prove(
-`!(x1:(64)word) (x0:(64)word) 
+ `!(x1:(64)word) (x0:(64)word) 
   (y1:(64)word) (y0:(64)word)
   (z1:(64)word) (z0:(64)word).
   sha512h2 (word_join x1 x0) (word_join y1 y0) (word_join z1 z0) = 
-  word_join ((compression_t2 z0 y0 z1) + x1) 
-            ((compression_t2 ((compression_t2 z0 y0 z1) + x1) z0 z1) + x0) :(128)word`,
+  word_join ((compression_t2 z0 z1 y0) + x1) 
+            ((compression_t2 (x1 + (compression_t2 z0 z1 y0)) z0 z1) + x0) :(128)word`,
   REPEAT STRIP_TAC THEN
   REWRITE_TAC[sha512h2; compression_t2] THEN
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS] THEN
   REWRITE_TAC[WORD_ADD_AC] THEN
-  SUBST1_TAC(ISPECL [`y0:64 word`; `z1:64 word`;`z0:64 word`] MAJ_ABC_EQ_CAB) THEN
+  (* We rotate the arguments of Maj using MAJ_ABC_EQ_CBA to match the invocation
+     in the specification function. *)
+  SUBST1_TAC(ISPECL [`y0:64 word`; `z1:64 word`;`z0:64 word`] MAJ_ABC_EQ_CBA) THEN
   REWRITE_TAC[]);;
 
 let SHA512H_RULE = prove(
@@ -381,9 +387,9 @@ let MESSAGE_SCHEDULE_20_RULE = prove(
                  MESSAGE_SCHEDULE_16_RULE; 
                  MESSAGE_SCHEDULE_17_RULE;
                  MESSAGE_SCHEDULE_18_RULE;
-                 MESSAGE_SCHEDULE_19_RULE]);;
+                 MESSAGE_SCHEDULE_19_RULE]);;            
 
-
+(* Abbreviates the first terms matching compression_t1 and compression_t2 in the goal. 
 let ABBREV_CT1_CT2_TERM n (asl, w as gl) = 
  let ty = `:((64)word)` in
  let ct1_var = mk_var("ct1_" ^ string_of_int n, ty) in
@@ -391,281 +397,102 @@ let ABBREV_CT1_CT2_TERM n (asl, w as gl) =
  let occ_ct1 = find_term (fun tm -> fst (strip_comb tm) = `compression_t1`) w in
  let occ_ct2 = find_term (fun tm -> fst (strip_comb tm) = `compression_t2`) w in
  (ABBREV_TAC (mk_eq(ct1_var, occ_ct1)) THEN ABBREV_TAC (mk_eq(ct2_var, occ_ct2))) gl;; 
-
-(*
-g`forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
-  (compression 
-    0 h_init
-    (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])) =
-    large_expression`;;
-
-(*
-let ct1_0 = compression_t1 h_e h_f h_g h_h (K 0) i0 in
-let ct2_0 = compression_t2 h_a h_b h_c in
-let ct1_1 = compression_t1 (h_d + ct1_0) h_e h_f h_g (K 1) i1 in
-let ct2_1 = compression_t2 (ct1_0 + ct2_0) h_a h_b in
-let ct1_2 = compression_t1 (h_c + ct1_1) (h_d + ct1_0) h_e h_f (K 2) i2 in
-let ct2_2 = compression_t2 (ct1_1 + ct2_1) (ct1_0 + ct2_0) h_a in
-let ct1_3 = compression_t1 (h_b + ct1_2) (h_c + ct1_1) (h_d + ct1_0) h_e (K 3) i3  in
-let ct2_3 = compression_t2 (ct1_2 + ct2_2) (ct1_1 + ct2_1) (ct1_0 + ct2_0) in
-let ct1_4 = compression_t1 (h_a + ct1_3) (h_b + ct1_2) (h_c + ct1_1) (h_d + ct1_0)
-  (K 4)
-  i4  in
-let ct2_4 = compression_t2 (ct1_3 + ct2_3) (ct1_2 + ct2_2) (ct1_1 + ct2_1) in
-let ct1_5 = compression_t1 ((ct1_0 + ct2_0) + ct1_4) (h_a + ct1_3) (h_b + ct1_2)
-  (h_c + ct1_1)
-  (K 5)
-  i5  in
-let ct2_5 = compression_t2 (ct1_4 + ct2_4) (ct1_3 + ct2_3) (ct1_2 + ct2_2) in
-let ct1_6 = compression_t1 ((ct1_1 + ct2_1) + ct1_5) ((ct1_0 + ct2_0) + ct1_4)
-  (h_a + ct1_3)
-  (h_b + ct1_2)
-  (K 6)
-  i6  in
-let ct2_6 = compression_t2 (ct1_5 + ct2_5) (ct1_4 + ct2_4) (ct1_3 + ct2_3) in
-let ct1_7 = compression_t1 ((ct1_2 + ct2_2) + ct1_6) ((ct1_1 + ct2_1) + ct1_5)
-  ((ct1_0 + ct2_0) + ct1_4)
-  (h_a + ct1_3)
-  (K 7)
-  i7  in
-let ct2_7 = compression_t2 (ct1_6 + ct2_6) (ct1_5 + ct2_5) (ct1_4 + ct2_4) in
-let ct1_8 = compression_t1 ((ct1_3 + ct2_3) + ct1_7) ((ct1_2 + ct2_2) + ct1_6)
-  ((ct1_1 + ct2_1) + ct1_5)
-  ((ct1_0 + ct2_0) + ct1_4)
-  (K 8)
-  i8  in
-let ct2_8 = compression_t2 (ct1_7 + ct2_7) (ct1_6 + ct2_6) (ct1_5 + ct2_5) in
-let ct1_9 = compression_t1 ((ct1_4 + ct2_4) + ct1_8) ((ct1_3 + ct2_3) + ct1_7)
-  ((ct1_2 + ct2_2) + ct1_6)
-  ((ct1_1 + ct2_1) + ct1_5)
-  (K 9)
-  i9  in
-let ct2_9 = compression_t2 (ct1_8 + ct2_8) (ct1_7 + ct2_7) (ct1_6 + ct2_6) in
-let ct1_10 = compression_t1 ((ct1_5 + ct2_5) + ct1_9) ((ct1_4 + ct2_4) + ct1_8)
-  ((ct1_3 + ct2_3) + ct1_7)
-  ((ct1_2 + ct2_2) + ct1_6)
-  (K 10)
-  i10 in
-let ct2_10 = compression_t2 (ct1_9 + ct2_9) (ct1_8 + ct2_8) (ct1_7 + ct2_7) in
-let ct1_11 = compression_t1 ((ct1_6 + ct2_6) + ct1_10) ((ct1_5 + ct2_5) + ct1_9)
-  ((ct1_4 + ct2_4) + ct1_8)
-  ((ct1_3 + ct2_3) + ct1_7)
-  (K 11)
-  i11 in
-let ct2_11 = compression_t2 (ct1_10 + ct2_10) (ct1_9 + ct2_9) (ct1_8 + ct2_8)  in
-let ct1_12 = compression_t1 ((ct1_7 + ct2_7) + ct1_11) ((ct1_6 + ct2_6) + ct1_10)
-  ((ct1_5 + ct2_5) + ct1_9)
-  ((ct1_4 + ct2_4) + ct1_8)
-  (K 12)
-  i12  in
-let ct2_12 = compression_t2 (ct1_11 + ct2_11) (ct1_10 + ct2_10) (ct1_9 + ct2_9)  in
-let ct1_13 = compression_t1 ((ct1_8 + ct2_8) + ct1_12) ((ct1_7 + ct2_7) + ct1_11)
-  ((ct1_6 + ct2_6) + ct1_10)
-  ((ct1_5 + ct2_5) + ct1_9)
-  (K 13)
-  i13  in
-let ct2_13 = compression_t2 (ct1_12 + ct2_12) (ct1_11 + ct2_11) (ct1_10 + ct2_10)  in
-let ct1_14 = compression_t1 ((ct1_9 + ct2_9) + ct1_13) ((ct1_8 + ct2_8) + ct1_12)
-  ((ct1_7 + ct2_7) + ct1_11)
-  ((ct1_6 + ct2_6) + ct1_10)
-  (K 14)
-  i14  in
-let ct2_14 = compression_t2 (ct1_13 + ct2_13) (ct1_12 + ct2_12) (ct1_11 + ct2_11)  in
-let ct1_15 = compression_t1 ((ct1_10 + ct2_10) + ct1_14) ((ct1_9 + ct2_9) + ct1_13)
-  ((ct1_8 + ct2_8) + ct1_12)
-  ((ct1_7 + ct2_7) + ct1_11)
-  (K 15)
-  i15  in
-let ct2_15 = compression_t2 (ct1_14 + ct2_14) (ct1_13 + ct2_13) (ct1_12 + ct2_12)  in
-let m0 = message_schedule_word i14 i9 i1 i0 in
-let ct1_16 = compression_t1 ((ct1_11 + ct2_11) + ct1_15)
-  ((ct1_10 + ct2_10) + ct1_14)
-  ((ct1_9 + ct2_9) + ct1_13)
-  ((ct1_8 + ct2_8) + ct1_12)
-  (K 16)
-  m0  in
-let ct2_16 = compression_t2 (ct1_15 + ct2_15) (ct1_14 + ct2_14) (ct1_13 + ct2_13)  in
-let m1 = message_schedule_word i15 i10 i2 i1 in
-(compression 18
- (compression_update
-  (ct1_16 + ct2_16,
-   ct1_15 + ct2_15,
-   ct1_14 + ct2_14,
-   ct1_13 + ct2_13,
-   (ct1_12 + ct2_12) + ct1_16,
-   (ct1_11 + ct2_11) + ct1_15,
-   (ct1_10 + ct2_10) + ct1_14,
-   (ct1_9 + ct2_9) + ct1_13)
-  (K 17)
- m1)
- (\j.
-      EL j
-      [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15]))`;; 
-*)
-
-e(REPEAT STRIP_TAC THEN
-  REWRITE_TAC[compression; h_init] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;  
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 0);; 
-
-(*
-e(ABBREV_TAC `ct1_0 = (compression_t1 h_e h_f h_g h_h (K 0) i0)`);;
-(* 
-   e(ABBREV_TAC `ct2_0 = (compression_t2 h_a h_c h_b)`);; 
-*)
-e(ABBREV_TAC `ct2_0 = (compression_t2 h_a h_b h_c)`);;
-*)
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;  
-e(ABBREV_CT1_CT2_TERM 1);;   
-(*
-e(ABBREV_TAC `ct1_1 = (compression_t1 (h_d + ct1_0) h_e h_f h_g (K 1) i1)`);;
-(* 
-   e(ABBREV_TAC `ct2_1 = (compression_t2 (ct2_0 + ct1_0) h_a h_b)`);;  
-*)
-e(ABBREV_TAC `ct2_1 = (compression_t2 (ct1_0 + ct2_0) h_a h_b)`);;  
-*)
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;  
-  e(ABBREV_CT1_CT2_TERM 2);;
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 3);;  
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 4);;  
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 5);;  
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;  
-e(ABBREV_CT1_CT2_TERM 6);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 7);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 8);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 9);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 10);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 11);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 12);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 13);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 14);;    
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
-e(ABBREV_CT1_CT2_TERM 15);; 
-
-e(REWRITE_TAC[compression; compression_update] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[compression] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
-  REWRITE_TAC[MESSAGE_SCHEDULE_16_RULE; MESSAGE_SCHEDULE_17_RULE]);;
-e(ABBREV_CT1_CT2_TERM 16);;   
-e(ABBREV_TAC `m0 = (message_schedule_word i14 i9 i1 i0)`);;
-e(ABBREV_TAC `m1 = (message_schedule_word i15 i10 i2 i1)`);;
 *)
 
 (* ------------------------------------------------------------------------- *)
 (* Correctness proof.                                                        *)
 (* ------------------------------------------------------------------------- *)
+
+(* Augment the OCaml reference variable that stores rewrite rules that will be
+   applied after each step of symbolic simulation. *)
+extra_word_CONV := 
+  (GEN_REWRITE_CONV I [WORD_BITMANIP_SIMP_LEMMAS; 
+                       REV64_BITMANIP_SIMP_LEMMAS; 
+                       SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE;
+                       MESSAGE_SCHEDULE_16_RULE]) ::
+                       !extra_word_CONV;;
+
+let COMPRESSION_EXPAND_INIT_TAC = 
+ (RULE_ASSUM_TAC(REWRITE_RULE[compression; h_init]) THEN
+  RULE_ASSUM_TAC((CONV_RULE(TOP_DEPTH_CONV let_CONV))) THEN
+  RULE_ASSUM_TAC((CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV))) THEN
+  RULE_ASSUM_TAC((REWRITE_RULE[MESSAGE_SCHEDULE_1_16_RULES])));;
+
+let COMPRESSION_EXPAND_TAC = 
+  (RULE_ASSUM_TAC(REWRITE_RULE[compression; compression_update]) THEN
+   RULE_ASSUM_TAC(CONV_RULE (TOP_DEPTH_CONV let_CONV)) THEN
+   RULE_ASSUM_TAC(REWRITE_RULE[compression]) THEN
+   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV let_CONV)) THEN
+   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)) THEN
+   RULE_ASSUM_TAC(REWRITE_RULE[MESSAGE_SCHEDULE_1_16_RULES]));;
+                       
+(* Abbreviate the first call of function fn found in the assumption list. 
+   
+   (FIXME) This is ugly because we're expecting that the first matches we 
+   encounter in the assumption list aren't previously abbreviated terms; i.e., 
+   we aren't re-abbreviating the LHS of the following that's ostensibly been 
+   introduced using a prior ABBREV_TAC. E.g.,
+
+   [compression_t1 h_e h_f h_g h_h (K 0) i0 = ct1_0]
+*)
+let ABBREV_FIRST_TERMS_IN_ASM_TAC (n:int) (var:string) (fn:term) (asl, w as gl) = 
+  let ty = `:((64)word)` in
+  let v = mk_var(var ^ string_of_int n, ty) in
+  let (f : term -> term -> bool) = (fun pat tm -> fst (strip_comb tm) = pat) in
+  let g = fun pat -> 
+            find
+              (fun (_, th) -> 
+                try let _ = find_term (f pat) (concl th) in true
+                with Failure _ -> false)             
+             (rev asl) in
+  let (_, matching_assum) = g fn in  
+  let occ = find_term (f fn) (concl matching_assum) in  
+  ABBREV_TAC (mk_eq(v, occ)) gl;;
+
+(*
+n: argument of the compression function call in the context.
+   n >= 18.
+*)  
+
+let COMPRESSION_UNWIND_TAC (n:int) : tactic =
+  if n < 18 || n > 80 then 
+    failwith "COMPRESSION_UNWIND_TAC: constraint on n violated! Constraint: 18 <= n <= 80."
+  else
+    (* (FIXME) If i < 16, we don't have an H_ms_* hyp in the context to use; we
+       have MESSAGE_SCHEDULE_1_16_RULES instead. However, we default to H_ms_16 
+       out of sheer laziness. *)
+    let (f : int -> string) = (fun i -> if i < 16 then "H_ms_16"
+                                        else ("H_ms_" ^ (string_of_int i))) in
+    let h_ms = f n in    
+    let h_ms_2 = f (n - 2) in    
+    let h_ms_7 = f (n - 7) in
+    let h_ms_15 = f (n - 15) in    
+    let h_ms_16 = f (n - 16) in        
+    let ms_lhs = mk_comb 
+                  (`message_schedule
+                      (\j. EL j [i0; i1; i2; i3; 
+                                 i4; i5; i6; i7; 
+                                 i8; i9; i10; i11; 
+                                 i12; i13; i14; i15])`,
+                    (mk_small_numeral n)) in    
+    let ms_rhs = mk_var(("ms_" ^ (string_of_int n)), `:((64)word)`) in
+    let ms_term = mk_eq(ms_lhs, ms_rhs) in    
+    (COMPRESSION_EXPAND_TAC THEN
+     ABBREV_FIRST_TERMS_IN_ASM_TAC (n - 1) "ct1_" `compression_t1` THEN
+     ABBREV_FIRST_TERMS_IN_ASM_TAC (n - 1) "ct2_" `compression_t2` THEN
+     ABBREV_FIRST_TERMS_IN_ASM_TAC n "ms_" `message_schedule` THEN
+     LABEL_TAC h_ms (ASSUME ms_term) THEN
+     USE_THEN h_ms_2 (fun out2 -> 
+     USE_THEN h_ms_7 (fun out7 -> 
+     USE_THEN h_ms_15 (fun out15 -> 
+     USE_THEN h_ms_16 (fun out16 -> 
+          USE_THEN h_ms
+           (fun th -> 
+              let th' = ONCE_REWRITE_RULE [message_schedule] th in
+              let th' = CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV) th' in
+              let th' = REWRITE_RULE [MESSAGE_SCHEDULE_1_16_RULES; 
+                                      out2; out7; out15; out16] th' in
+              ASSUME_TAC th'))))));; 
 
 arm_print_log := false;;
 components_print_log := true;;
@@ -705,46 +532,46 @@ ensures arm
        read SP s  = word_add (word sp) (word 128) /\
        // KTbl constants are in memory.
        // bignum_from_memory (word ktbl_base, 80) s = ktbl_bignum /\
-       read (memory :> bytes128 (word ktbl_base))                           s = word_join  K_1  K_0 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word 16)))      s = word_join  K_3  K_2 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*2))))  s = word_join  K_5  K_4 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*3))))  s = word_join  K_7  K_6 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*4))))  s = word_join  K_9  K_8 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*5))))  s = word_join K_11 K_10 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*6))))  s = word_join K_13 K_12 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*7))))  s = word_join K_15 K_14 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*8))))  s = word_join K_17 K_16 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*9))))  s = word_join K_19 K_18 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*10)))) s = word_join K_21 K_20 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*11)))) s = word_join K_23 K_22 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*12)))) s = word_join K_25 K_24 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*13)))) s = word_join K_27 K_26 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*14)))) s = word_join K_29 K_28 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*15)))) s = word_join K_31 K_30 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*16)))) s = word_join K_33 K_32 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*17)))) s = word_join K_35 K_34 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*18)))) s = word_join K_37 K_36 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*19)))) s = word_join K_39 K_38 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*20)))) s = word_join K_41 K_40 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*21)))) s = word_join K_43 K_42 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*22)))) s = word_join K_45 K_44 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*23)))) s = word_join K_47 K_46 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*24)))) s = word_join K_49 K_48 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*25)))) s = word_join K_51 K_50 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*26)))) s = word_join K_53 K_52 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*27)))) s = word_join K_55 K_54 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*28)))) s = word_join K_57 K_56 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*29)))) s = word_join K_59 K_58 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*30)))) s = word_join K_61 K_60 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*31)))) s = word_join K_63 K_62 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*32)))) s = word_join K_65 K_64 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*33)))) s = word_join K_67 K_66 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*34)))) s = word_join K_69 K_68 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*35)))) s = word_join K_71 K_70 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*36)))) s = word_join K_73 K_72 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*37)))) s = word_join K_75 K_74 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*38)))) s = word_join K_77 K_76 /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*39)))) s = word_join K_79 K_78 /\ 
+       read (memory :> bytes128 (word ktbl_base))                           s = word_join (K  1) (K  0) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word 16)))      s = word_join (K  3) (K  2) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*2))))  s = word_join (K  5) (K  4) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*3))))  s = word_join (K  7) (K  6) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*4))))  s = word_join (K  9) (K  8) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*5))))  s = word_join (K 11) (K 10) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*6))))  s = word_join (K 13) (K 12) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*7))))  s = word_join (K 15) (K 14) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*8))))  s = word_join (K 17) (K 16) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*9))))  s = word_join (K 19) (K 18) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*10)))) s = word_join (K 21) (K 20) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*11)))) s = word_join (K 23) (K 22) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*12)))) s = word_join (K 25) (K 24) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*13)))) s = word_join (K 27) (K 26) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*14)))) s = word_join (K 29) (K 28) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*15)))) s = word_join (K 31) (K 30) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*16)))) s = word_join (K 33) (K 32) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*17)))) s = word_join (K 35) (K 34) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*18)))) s = word_join (K 37) (K 36) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*19)))) s = word_join (K 39) (K 38) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*20)))) s = word_join (K 41) (K 40) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*21)))) s = word_join (K 43) (K 42) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*22)))) s = word_join (K 45) (K 44) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*23)))) s = word_join (K 47) (K 46) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*24)))) s = word_join (K 49) (K 48) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*25)))) s = word_join (K 51) (K 50) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*26)))) s = word_join (K 53) (K 52) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*27)))) s = word_join (K 55) (K 54) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*28)))) s = word_join (K 57) (K 56) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*29)))) s = word_join (K 59) (K 58) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*30)))) s = word_join (K 61) (K 60) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*31)))) s = word_join (K 63) (K 62) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*32)))) s = word_join (K 65) (K 64) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*33)))) s = word_join (K 67) (K 66) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*34)))) s = word_join (K 69) (K 68) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*35)))) s = word_join (K 71) (K 70) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*36)))) s = word_join (K 73) (K 72) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*37)))) s = word_join (K 75) (K 74) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*38)))) s = word_join (K 77) (K 76) /\ 
+       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*39)))) s = word_join (K 79) (K 78) /\ 
        // One input block is in memory.       
        // bignum_from_memory (word input_base, 16) s = input_block /\
        // We use word_bytereverse below for each input word i0-i15 because they 
@@ -790,6 +617,61 @@ e(ENSURES_INIT_TAC "s0");;
    we may lose the loads' effects during simulation. *)
 e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)));;
 
+(* #### Expand and simplify the specification function compression. #### *)
+e(COMPRESSION_EXPAND_INIT_TAC);;   
+e(MAP_EVERY (fun i -> (COMPRESSION_EXPAND_TAC THEN
+                       ABBREV_FIRST_TERMS_IN_ASM_TAC i "ct1_" `compression_t1` THEN
+                       ABBREV_FIRST_TERMS_IN_ASM_TAC i "ct2_" `compression_t2`))
+            (0--15));;
+(* I want to have ms_16 as the RHS in the equality of two terms:
+   one in terms of message_schedule and the other in terms of 
+   message_schedule_word. This is to mimic memoization: the former 
+   will help in reusing already-computed values when expanding the
+   message_schedule (the specification function) and the latter will 
+   be used during symbolic simulation. We also get the equality of 
+   these for "free". *)
+e(ABBREV_FIRST_TERMS_IN_ASM_TAC 16 "ms_" `message_schedule`);;
+e(LABEL_TAC "H_ms_16" 
+              (ASSUME `(message_schedule
+                        (\j. EL j [i0; i1; i2; i3; 
+                                   i4; i5; i6; i7; 
+                                   i8; i9; i10; i11; 
+                                   i12; i13; i14; i15])
+                       16) = ms_16`));;
+e(USE_THEN "H_ms_16" 
+            (fun th -> 
+              let th' = REWRITE_RULE [MESSAGE_SCHEDULE_16_RULE] th in
+              ASSUME_TAC th'));;
+
+e(COMPRESSION_EXPAND_TAC THEN
+  ABBREV_FIRST_TERMS_IN_ASM_TAC 16 "ct1_" `compression_t1` THEN
+  ABBREV_FIRST_TERMS_IN_ASM_TAC 16 "ct2_" `compression_t2`);; 
+e(ABBREV_FIRST_TERMS_IN_ASM_TAC 17 "ms_" `message_schedule`);;
+e(LABEL_TAC "H_ms_17" 
+            (ASSUME `(message_schedule
+                      (\j. EL j [i0; i1; i2; i3; 
+                                 i4; i5; i6; i7; 
+                                 i8; i9; i10; i11; 
+                                 i12; i13; i14; i15])
+                     17) = ms_17`));;
+e(USE_THEN "H_ms_17" 
+            (fun th -> 
+                let th' = REWRITE_RULE [MESSAGE_SCHEDULE_17_RULE] th in
+                ASSUME_TAC th'));;
+
+(* Snorkeling COMPRESSION_UNWIND_TAC for better interactive experience. *)
+e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (18--40));;
+e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (41--60));;
+e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (61--79));;
+
+e(COMPRESSION_EXPAND_TAC);;
+e(ABBREV_FIRST_TERMS_IN_ASM_TAC 79 "ct1_" `compression_t1` THEN
+  ABBREV_FIRST_TERMS_IN_ASM_TAC 79 "ct2_" `compression_t2`);;
+e(DISCARD_MATCHING_ASSUMPTIONS [`message_schedule m i = var`]);;  
+e(RULE_ASSUM_TAC(REWRITE_RULE[add8; PAIR_EQ]));;
+
+(* #### End of simplifying the specification function compression. #### *)
+
 (* e(BIGNUM_DIGITIZE_TAC "i_" `read (memory :> bytes (word input_base, 8 * 16)) s0`);; *)
 (* e(BIGNUM_DIGITIZE_TAC "h_" `read (memory :> bytes (word hash_base, 8 * 8)) s0`);; *)
 (* e(BIGNUM_DIGITIZE_TAC "k_" `read (memory :> bytes (word ktbl_base, 8 * 80)) s0`);; *)
@@ -798,10 +680,11 @@ e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)));;
 (* e(ARM_VSTEPS_TAC SHA512_HW_EXEC (1--3));; *)
 
 e(ARM_STEPS_TAC SHA512_HW_EXEC (1--14));;
-(* Simulate and simplify the REV64 instructions. *)
+(* (FIXME) Speed this up.
+    Simulate and simplify the REV64 instructions. *)
 e(MAP_EVERY (fun n -> ARM_STEPS_TAC SHA512_HW_EXEC [n] THEN 
-                    RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
-                    RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]))
+                      RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+                      RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]))
            (15--22));;
 (* Simulate the unconditional branch instruction. *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (16--16));;
@@ -809,47 +692,20 @@ e(ARM_STEPS_TAC SHA512_HW_EXEC (16--16));;
 
 (* 0x3cc10478;  ldr q24, [x3], #16 *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (17--25));; 
-e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
-e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]));;
 
 (* 1/32: 12 instruction sub-block beginning at
     0x3cc10479;  ldr q25, [x3], #16  *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (26--37));; 
-e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
-e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS; 
-                               SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]));;
-e(ABBREV_TAC `m0    = (message_schedule_word i14 i9 i1 i0)`);;
-e(ABBREV_TAC `m1    = (message_schedule_word i15 i10 i2 i1)`);;
-e(ABBREV_TAC `ct1_0 = (compression_t1 h_e h_f h_g h_h K_0 i0)`);;
-e(ABBREV_TAC `ct2_0 = (compression_t2 h_a h_c h_b)`);;
-e(ABBREV_TAC `ct1_1 = (compression_t1 (h_d + ct1_0) h_e h_f h_g K_1 i1)`);;
-e(ABBREV_TAC `ct2_1 = (compression_t2 (ct2_0 + ct1_0) h_a h_b)`);;
 
 (* 2/32: 12 instruction sub-block beginning at
    0x3cc10478; ldr q24, [x3], #16 *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (38--49));; 
-e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
-e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS; 
-                              SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]));;
-e(ABBREV_TAC `m2    = (message_schedule_word m0 i11 i3 i2)`);;
-e(ABBREV_TAC `m3    = (message_schedule_word m1 i12 i4 i3)`);;
-e(ABBREV_TAC `ct1_2 = (compression_t1 (h_c + ct1_1) (h_d + ct1_0) h_e h_f K_2 i2)`);;
-e(ABBREV_TAC `ct1_3 = (compression_t1 (h_b + ct1_2) (h_c + ct1_1) (h_d + ct1_0) h_e K_3 i3)`);;
-e(ABBREV_TAC `ct2_2 = (compression_t2 (ct2_1 + ct1_1) h_a (ct2_0 + ct1_0))`);;
-e(ABBREV_TAC `ct2_3 = (compression_t2 (ct2_2 + ct1_2) (ct2_1 + ct1_1) (ct2_0 + ct1_0))`);;
 
 (* 3/32: 12 instruction sub-block beginning at
    0x3cc10479; 	ldr q25, [x3], #16 *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (50--61));; 
-e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)));;
-e(RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS; 
-                                 SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]));;
-e(ABBREV_TAC `m4    = (message_schedule_word m2 i13 i5 i4)`);;
-e(ABBREV_TAC `m5    = (message_schedule_word m3 i14 i6 i5)`);;
-e(ABBREV_TAC `ct1_4 = (compression_t1 (h_a + ct1_3) (h_b + ct1_2) (h_c + ct1_1) (h_d + ct1_0) K_4 i4)`);;
-e(ABBREV_TAC `ct1_5 = (compression_t1 ((ct2_0 + ct1_0) + ct1_4) (h_a + ct1_3) (h_b + ct1_2) (h_c + ct1_1) K_5 i5)`);;
-e(ABBREV_TAC `ct2_4 = (compression_t2 (ct2_3 + ct1_3) (ct2_1 + ct1_1) (ct2_2 + ct1_2) + ct1_4)`);;
-e(ABBREV_TAC `ct2_5 = (compression_t2 ct2_4 (ct2_3 + ct1_3) (ct2_2 + ct1_2) + ct1_5)`);;
+
+e(ARM_STEPS_TAC SHA512_HW_EXEC (62--200));; 
 
 
 (* ... *)

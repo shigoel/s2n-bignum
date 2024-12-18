@@ -221,6 +221,11 @@ let h_init_RED_CONV =
 
 (* let tmp = h_init_RED_CONV `h_init`;; *)
 
+let K_DEF_RED_CONV =
+  REWRITE_CONV 
+     [K_DEF; ktbl_list; EL_CONS] THENC 
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
+
 let K_RED_CONV =
   REWRITE_CONV 
      [K_DEF; ktbl_list; 
