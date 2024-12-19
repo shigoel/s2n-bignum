@@ -155,15 +155,28 @@ let message_schedule = define
                                  (message_schedule m (i - 15))
                                  (message_schedule m (i - 16))`;;
 
+(*
 let compression_t1 = define
   `compression_t1 e f g h kt wt = h + Sigma1(e) + Ch(e,f,g) + kt + wt`;;
+*)
 
 let compression_t2 = define
   `compression_t2 a b c = Sigma0(a) + Maj(a,b,c)`;;
 
+(*
 let compression_update = define
  `compression_update (a,b,c,d,e,f,g,h) ki wi =
     let t1 = compression_t1 e f g h ki wi in
+    let t2 = compression_t2 a b c in
+    (t1 + t2, a, b, c, d + t1, e, f, g)`;;
+*)
+
+let compression_t1 = define
+  `compression_t1 e f g h = h + Sigma1(e) + Ch(e,f,g)`;;
+
+let compression_update = define
+ `compression_update (a,b,c,d,e,f,g,h) ki wi =
+    let t1 = (compression_t1 e f g h) + ki + wi in
     let t2 = compression_t2 a b c in
     (t1 + t2, a, b, c, d + t1, e, f, g)`;;
 
