@@ -240,7 +240,6 @@ let SHA512_SPEC_ONE_BLOCK_RULE = prove(
     CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV));;  
 
-(*
 let MESSAGE_SCHEDULE_I_LT_16_RULE = prove(    
  `forall n i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
   n < 16 ==>
@@ -251,10 +250,17 @@ let MESSAGE_SCHEDULE_I_LT_16_RULE = prove(
   REPEAT STRIP_TAC THEN
   ONCE_ASM_REWRITE_TAC [message_schedule] THEN
   ASM_REWRITE_TAC []);;
-*)    
+
+(*
+g`forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
+ (message_schedule
+    (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
+    0) = i0`;;
+e(IMP_REWRITE_TAC[MESSAGE_SCHEDULE_I_LT_16_RULE; EL_CONS] THEN ARITH_TAC);;
+*)
 
 let MESSAGE_SCHEDULE_1_16_RULES = prove( 
-`forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
+ `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
  (message_schedule
     (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
     0) = i0 
@@ -317,11 +323,9 @@ let MESSAGE_SCHEDULE_1_16_RULES = prove(
   /\
  (message_schedule
   (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  15) = i15`, 
- REPEAT STRIP_TAC THEN
- ONCE_ASM_REWRITE_TAC [message_schedule] THEN
- ASM_REWRITE_TAC [EL_CONS] THEN 
- CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV));;
+  15) = i15`,
+  IMP_REWRITE_TAC[MESSAGE_SCHEDULE_I_LT_16_RULE; EL_CONS] THEN 
+  CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV));;
 
 let MESSAGE_SCHEDULE_16_RULE = prove(
    `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.   
@@ -345,54 +349,31 @@ let MESSAGE_SCHEDULE_17_RULE = prove(
     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
     REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
 
-(* Abbreviates the first terms matching compression_t1 and compression_t2 in the goal. 
-let ABBREV_CT1_CT2_TERM n (asl, w as gl) = 
- let ty = `:((64)word)` in
- let ct1_var = mk_var("ct1_" ^ string_of_int n, ty) in
- let ct2_var = mk_var("ct2_" ^ string_of_int n, ty) in
- let occ_ct1 = find_term (fun tm -> fst (strip_comb tm) = `compression_t1`) w in
- let occ_ct2 = find_term (fun tm -> fst (strip_comb tm) = `compression_t2`) w in
- (ABBREV_TAC (mk_eq(ct1_var, occ_ct1)) THEN ABBREV_TAC (mk_eq(ct2_var, occ_ct2))) gl;; 
-*)
-
 (*
 Rewrite with assumptions of the form 
 compression_t1 ... = var and
 compression_t2 ... = var 
 at the assumption of the form
 read <?> s? = <term>
-
-(FIXME) Remove "Warning: inventing type variables".
 *)
-let USE_ABBREV_IN_STATE_COMPONENTS_TAC (asl, w) =  
-  let abbrev_asms = 
-    (* Get all assumptions of the shape 
-       compression_t2 arg1 arg2 arg3 = var.
-    *)
-    (filter (fun (_, th) ->
-              (can (term_match [] `compression_t2 x y z = var`) (concl th)) ||
-               can (term_match [] `compression_t1 a b c d = var`) (concl th))
-            asl) in
-  let abbrev_thms = map (fun (_, th) -> th) abbrev_asms in
-  let asl' = mapfilter 
-              (fun (s,th) ->                 
-                if can (term_match [] `read reg state = term`) (concl th) then                   
-                  (s, (PURE_REWRITE_RULE abbrev_thms th))
-                else (s,th))
-              asl in  
-  ALL_TAC (asl', w);;
-
-(* ------------------------------------------------------------------------- *)
-(* Correctness proof.                                                        *)
-(* ------------------------------------------------------------------------- *)
-
-(* Augment the OCaml reference variable that stores rewrite rules that will be
-   applied after each step of symbolic simulation. *)
-extra_word_CONV := 
-  (GEN_REWRITE_CONV I [WORD_BITMANIP_SIMP_LEMMAS; 
-                       REV64_BITMANIP_SIMP_LEMMAS; 
-                       SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]) ::
-                       !extra_word_CONV;;
+let USE_ABBREV_IN_STATE_COMPONENTS_TAC : tactic =
+  let pat1 = `compression_t1 a b c d = var`
+  and pat2 = `compression_t2 x y z = var`
+  and pat3 = `read reg state = term` in
+  fun (asl, w) ->
+    let abbrev_asms =
+      (filter (fun (_, th) ->
+                (can (term_match [] pat1) (concl th)) ||
+                 can (term_match [] pat2) (concl th))
+              asl) in
+    let abbrev_thms = map (fun (_, th) -> th) abbrev_asms in
+    let asl' = mapfilter
+                (fun (s,th) ->
+                  if can (term_match [] pat3) (concl th) then
+                    (s, (PURE_REWRITE_RULE abbrev_thms th))
+                  else (s,th))
+                asl in
+    ALL_TAC (asl', w);;
 
 let COMPRESSION_EXPAND_INIT_TAC = 
  (RULE_ASSUM_TAC(REWRITE_RULE[compression; h_init]) THEN
@@ -408,46 +389,66 @@ let COMPRESSION_EXPAND_TAC =
    RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)) THEN
    RULE_ASSUM_TAC(REWRITE_RULE[MESSAGE_SCHEDULE_1_16_RULES]));;
                        
-(* Abbreviate the first call of function fn found in the assumption list. 
-   
-   (FIXME) This is ugly because we're expecting that the first matches we 
-   encounter in the assumption list aren't previously abbreviated terms; i.e., 
-   we aren't re-abbreviating the LHS of the following that's ostensibly been 
-   introduced using a prior ABBREV_TAC. E.g.,
-
-   [compression_t1 h_e h_f h_g h_h (K 0) i0 = ct1_0]
+(* 
+Abbreviate the first occurrence of a function call of fn
+found among the assumptions. Note that we do not abbreviate if
+the matched assumption's RHS is a variable; this is to avoid 
+re-abbreviating previously abbreviated assumptions.
 *)
-let ABBREV_FIRST_TERMS_IN_ASM_TAC (n:int) (var:string) (fn:term) (asl, w as gl) = 
+let ABBREV_FIRST_OCC_IN_ASM_TAC (n:int) (var:string) (fn:term) (asl, w as gl) = 
   let ty = `:((64)word)` in
   let v = mk_var(var ^ string_of_int n, ty) in
   let (f : term -> term -> bool) = (fun pat tm -> fst (strip_comb tm) = pat) in
   let g = fun pat -> 
             find
-              (fun (_, th) -> 
-                try let _ = find_term (f pat) (concl th) in true
-                with Failure _ -> false)             
+              (fun (_, th) ->
+                  let tm = concl th in
+                  try let _ = find_term (f pat) tm in
+                    not (is_var (rhs tm))
+                  with Failure _ -> false)
              (rev asl) in
-  let (_, matching_assum) = g fn in  
-  let occ = find_term (f fn) (concl matching_assum) in  
+  let (_, matching_assum) = g fn in
+  let occ = find_term (f fn) (concl matching_assum) in
   ABBREV_TAC (mk_eq(v, occ)) gl;;
 
 (*
-n: argument of the call of the compression function in the context.
+We unwind a call of the compression function with n as the first 
+argument, creating abbreviations for unique calls of compression_t1, 
+compression_t2, and message_schedule along the way. 
+
+compression_t1 ?a ?b ?c ?d = ct1_<n-1>
+compression_t2 ?a ?b ?c = ct2_<n-1>
+message_schedule ?m n = ms_<n>
+
+Additionally, we introduce another equation where the call of 
+message_schedule above is simplified to an equivalent call of
+message_schedule_word (note that the variable in the RHS is still
+ms_<n>).
+
+message_schedule_word ?a ?b ?c ?d = ms_<n>
+
+This simplification is done by expanding the call of 
+message_schedule once and rewriting away subsequent 
+message_schedule calls using previously introduced abbreviations.
+
+As we see, the message_schedule abbreviations are reused when 
+expanding the specification function. Those about 
+message_schedule_word will come in useful during symbolic simulation -- 
+ref. the theorem SHA512SU1_SU0 which rewrites the SHA512SU0/SU1 
+instructions in terms of message_schedule_word.
+
+Once the specification is expanded away, we will discard all 
+message_schedule assumptions but the ms_i variables will be retained
+in the RHS of the message_schedule_word assumptions and in the 
+expanded specification. These ms_i variables will help in establishing 
+the equivalence of the specification and the implementation.
 *)  
 let COMPRESSION_UNWIND_TAC (n:int) : tactic =
   if n < 18 || n > 80 then 
     failwith "COMPRESSION_UNWIND_TAC: constraint on n violated! Constraint: 18 <= n <= 80."
   else
-    (* (FIXME) If i < 16, we don't have an H_ms_* hyp in the context to use; we
-       have MESSAGE_SCHEDULE_1_16_RULES instead. However, we default to H_ms_16 
-       out of sheer laziness. *)
-    let (f : int -> string) = (fun i -> if i < 16 then "H_ms_16"
-                                        else ("H_ms_" ^ (string_of_int i))) in
-    let h_ms = f n in    
-    let h_ms_2 = f (n - 2) in    
-    let h_ms_7 = f (n - 7) in
-    let h_ms_15 = f (n - 15) in    
-    let h_ms_16 = f (n - 16) in        
+    let pat1 = `message_schedule m i = var` in
+    let h_ms = ("H_ms_" ^ (string_of_int n)) in
     let ms_lhs = mk_comb 
                   (`message_schedule
                       (\j. EL j [i0; i1; i2; i3; 
@@ -457,36 +458,45 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
                     (mk_small_numeral n)) in    
     let ms_rhs = mk_var(("ms_" ^ (string_of_int n)), `:((64)word)`) in
     let ms_term = mk_eq(ms_lhs, ms_rhs) in    
-    (COMPRESSION_EXPAND_TAC THEN
-     ABBREV_FIRST_TERMS_IN_ASM_TAC (n - 1) "ct1_" `compression_t1` THEN
-     ABBREV_FIRST_TERMS_IN_ASM_TAC (n - 1) "ct2_" `compression_t2` THEN
-     ABBREV_FIRST_TERMS_IN_ASM_TAC n "ms_" `message_schedule` THEN
-     LABEL_TAC h_ms (ASSUME ms_term) THEN
-     USE_THEN h_ms_2 (fun out2 -> 
-     USE_THEN h_ms_7 (fun out7 -> 
-     USE_THEN h_ms_15 (fun out15 -> 
-     USE_THEN h_ms_16 (fun out16 -> 
-          USE_THEN h_ms
-           (fun th -> 
-              let th' = ONCE_REWRITE_RULE [message_schedule] th in
-              let th' = CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV) th' in
-              let th' = REWRITE_RULE [MESSAGE_SCHEDULE_1_16_RULES; 
-                                      out2; out7; out15; out16] th' in
-              ASSUME_TAC th'))))));;
+    fun (asl, w as gl) ->
+      let abbrev_asms =
+        (filter (fun (_, th) -> (can (term_match [] pat1) (concl th)))
+                asl) in
+      let abbrev_thms = map (fun (_, th) -> th) abbrev_asms in
+      let abbrev_thms = MESSAGE_SCHEDULE_1_16_RULES :: abbrev_thms in
+      (COMPRESSION_EXPAND_TAC THEN
+       ABBREV_FIRST_OCC_IN_ASM_TAC (n - 1) "ct1_" `compression_t1` THEN
+       ABBREV_FIRST_OCC_IN_ASM_TAC (n - 1) "ct2_" `compression_t2` THEN
+       ABBREV_FIRST_OCC_IN_ASM_TAC n "ms_" `message_schedule` THEN
+       LABEL_TAC h_ms (ASSUME ms_term) THEN
+       REMOVE_THEN h_ms 
+        (fun th -> 
+          let th' = ONCE_REWRITE_RULE [message_schedule] th in
+          let th' = CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV) th' in
+          let th' = REWRITE_RULE abbrev_thms th' in
+          ASSUME_TAC th')) gl;;
+
+(* ------------------------------------------------------------------------- *)
+(* Correctness proof.                                                        *)
+(* ------------------------------------------------------------------------- *)
+
+(* Augment the OCaml reference variable that stores rewrite rules that will be
+   applied after each step of symbolic simulation. *)
+   extra_word_CONV := 
+   (GEN_REWRITE_CONV I [WORD_BITMANIP_SIMP_LEMMAS; 
+                        REV64_BITMANIP_SIMP_LEMMAS; 
+                        SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]) ::
+                        !extra_word_CONV;;          
 
 arm_print_log := false;;
 components_print_log := true;;
-
-(* let tmp = WORD_REDUCE_CONV `word_bytereverse (word 0x11223344556677889900AABBCCDDEEFF):int128`;; *)
-(* let tmp = WORD_REDUCE_CONV `(word_join (word_bytereverse (word 0x1122334455667788):int64) (word_bytereverse (word 0xAABBCCDDEEFF0011):int64)) : 128 word`;; *)
-(* Printf.printf "%x\n" 857870592;; *)
 
 g`forall pc retpc sp num_blocks hash_base ktbl_base input_base   
   // input_block 
   i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15 
   // final hash
   a b c d e f g h.
-// We fix the number of blocks to be hashed to 1 for now.
+// We fix the number of blocks to hash to 1.
 num_blocks = 1 /\
 // No aliasing among all memory regions of interest.
 PAIRWISE nonoverlapping
@@ -576,16 +586,17 @@ ensures arm
        read (memory :> bytes128 (word_add (word hash_base) (word 32))) s = word_join h_f h_e /\
        read (memory :> bytes128 (word_add (word hash_base) (word 48))) s = word_join h_h h_g)
   // Postcondition
-  (\s. read PC s = word (pc + 2024) /\       
+  (\s. // read PC s = word (pc + 2024) /\       
        read X1 s = word input_base + word 128 /\
        // No more blocks are left to hash.
        read X2 s = word 0 /\ 
        // x3 points to the base address of the KTbl.
-       read X3 s = word ktbl_base /\              
+       read X3 s = word ktbl_base /\
+       // read (memory :> bytes128 (word hash_base)) s = word_join b a /\
        read Q0 s = word_join b a /\
        read Q1 s = word_join d c /\
        read Q2 s = word_join f e /\
-       read Q3 s = word_join h g)     
+       read Q3 s = word_join h g)  
   // Registers (and memory locations) that may change after execution.
   (\s s'. T)
   `;;
@@ -604,17 +615,11 @@ e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)));;
 (* #### Expand and simplify the specification function compression. #### *)
 e(COMPRESSION_EXPAND_INIT_TAC);;   
 e(MAP_EVERY (fun i -> (COMPRESSION_EXPAND_TAC THEN
-                       ABBREV_FIRST_TERMS_IN_ASM_TAC i "ct1_" `compression_t1` THEN
-                       ABBREV_FIRST_TERMS_IN_ASM_TAC i "ct2_" `compression_t2`))
+                       ABBREV_FIRST_OCC_IN_ASM_TAC i "ct1_" `compression_t1` THEN
+                       ABBREV_FIRST_OCC_IN_ASM_TAC i "ct2_" `compression_t2`))
             (0--15));;
-(* I want to have ms_16 as the RHS in the equality of two terms:
-   one in terms of message_schedule and the other in terms of 
-   message_schedule_word. This is to mimic memoization: the former 
-   will help in reusing already-computed values when expanding the
-   message_schedule (the specification function) and the latter will 
-   be used during symbolic simulation. We also get the equality of 
-   these for "free". *)
-e(ABBREV_FIRST_TERMS_IN_ASM_TAC 16 "ms_" `message_schedule`);;
+
+e(ABBREV_FIRST_OCC_IN_ASM_TAC 16 "ms_" `message_schedule`);;
 e(LABEL_TAC "H_ms_16" 
               (ASSUME `(message_schedule
                         (\j. EL j [i0; i1; i2; i3; 
@@ -622,15 +627,15 @@ e(LABEL_TAC "H_ms_16"
                                    i8; i9; i10; i11; 
                                    i12; i13; i14; i15])
                        16) = ms_16`));;
-e(USE_THEN "H_ms_16" 
+e(REMOVE_THEN "H_ms_16" 
             (fun th -> 
               let th' = REWRITE_RULE [MESSAGE_SCHEDULE_16_RULE] th in
               ASSUME_TAC th'));;
 
 e(COMPRESSION_EXPAND_TAC THEN
-  ABBREV_FIRST_TERMS_IN_ASM_TAC 16 "ct1_" `compression_t1` THEN
-  ABBREV_FIRST_TERMS_IN_ASM_TAC 16 "ct2_" `compression_t2`);; 
-e(ABBREV_FIRST_TERMS_IN_ASM_TAC 17 "ms_" `message_schedule`);;
+  ABBREV_FIRST_OCC_IN_ASM_TAC 16 "ct1_" `compression_t1` THEN
+  ABBREV_FIRST_OCC_IN_ASM_TAC 16 "ct2_" `compression_t2`);; 
+e(ABBREV_FIRST_OCC_IN_ASM_TAC 17 "ms_" `message_schedule`);;
 e(LABEL_TAC "H_ms_17" 
             (ASSUME `(message_schedule
                       (\j. EL j [i0; i1; i2; i3; 
@@ -638,7 +643,7 @@ e(LABEL_TAC "H_ms_17"
                                  i8; i9; i10; i11; 
                                  i12; i13; i14; i15])
                      17) = ms_17`));;
-e(USE_THEN "H_ms_17" 
+e(REMOVE_THEN "H_ms_17" 
             (fun th -> 
                 let th' = REWRITE_RULE [MESSAGE_SCHEDULE_17_RULE] th in
                 ASSUME_TAC th'));;
@@ -649,8 +654,10 @@ e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (41--60));;
 e(MAP_EVERY (fun n -> COMPRESSION_UNWIND_TAC n) (61--79));;
 
 e(COMPRESSION_EXPAND_TAC);;
-e(ABBREV_FIRST_TERMS_IN_ASM_TAC 79 "ct1_" `compression_t1` THEN
-  ABBREV_FIRST_TERMS_IN_ASM_TAC 79 "ct2_" `compression_t2`);;
+e(ABBREV_FIRST_OCC_IN_ASM_TAC 79 "ct1_" `compression_t1` THEN
+  ABBREV_FIRST_OCC_IN_ASM_TAC 79 "ct2_" `compression_t2`);;
+(* We don't need abbreviations for message_schedule anymore -- we've 
+simplified away all message_schedule calls. *)  
 e(DISCARD_MATCHING_ASSUMPTIONS [`message_schedule m i = var`]);;  
 e(RULE_ASSUM_TAC(REWRITE_RULE[add8; PAIR_EQ]));;
 (* Normalize w.r.t. word_add *)
@@ -663,9 +670,10 @@ e(RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]));;
 e(ARM_STEPS_TAC SHA512_HW_EXEC (1--12));;
 (* (FIXME) Speed this up.
     Simulate and simplify the REV64 instructions. *)
-e(MAP_EVERY (fun n -> ARM_STEPS_TAC SHA512_HW_EXEC [n] THEN 
-                      RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
-                      RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]))
+e(MAP_EVERY (fun n -> 
+              ARM_STEPS_TAC SHA512_HW_EXEC [n] THEN 
+              RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+              RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]))
            (13--20));;
 (* Simulate the unconditional branch instruction. *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (21--21));;
@@ -690,37 +698,43 @@ e(MAP_EVERY (fun n ->
               let start = 12*(n-1) + 30 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--5));;
 e(MAP_EVERY (fun n ->
               let start = 12*(n-1) + 90 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--5));;            
 e(MAP_EVERY (fun n ->
               let start = 12*(n-1) + 150 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--5));;       
 e(MAP_EVERY (fun n ->
               let start = 12*(n-1) + 210 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--5));;                   
 e(MAP_EVERY (fun n ->
               let start = 12*(n-1) + 270 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--5));;
 e(MAP_EVERY (fun n ->
               let start = 12*(n-1) + 330 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--7));;
 
 (* (1--7)/7: 7  11-instruction sub-blocks *)
@@ -730,25 +744,40 @@ e(MAP_EVERY (fun n ->
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
               RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]) THEN
-              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+              REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
             (1--7));;
 
 (* 1/1: 1  11-instruction sub-block *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (491--501) THEN
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]) THEN
-  REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC));;
+  REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+              USE_ABBREV_IN_STATE_COMPONENTS_TAC));;
 
 (* 1/1: 1  5-instruction sub-block *)
 e(ARM_STEPS_TAC SHA512_HW_EXEC (502--506) THEN
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]) THEN
-  REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN USE_ABBREV_IN_STATE_COMPONENTS_TAC));;
+  REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
+              USE_ABBREV_IN_STATE_COMPONENTS_TAC));;
 
 (* Now we are at the end of the loop. *)
 
-(* (TODO) 1/1: 1  6-instruction sub-block *)
-(* e(ARM_STEPS_TAC SHA512_HW_EXEC (507--510));; *)
+(* 1/1: 1  6-instruction sub-block *)
+
+(* [To John] This is the tactic that fails with the following message. 
+    Note that 
+    List.nth sha512_hw_prog_asm 506 
+    is
+    (1031798784, "str q0, [x0]")
+
+    The proof still works without the following step and if you
+    elide the following conjunct from the post-condition.
+
+    read (memory :> bytes128 (word hash_base)) s = word_join b a
+*)
+(* e(ARM_STEPS_TAC SHA512_HW_EXEC (507--507));; *)
 
 (* #### End Symbolic Simulation. #### *)
 

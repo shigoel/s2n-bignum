@@ -120,10 +120,10 @@ let sha512_hw_prog_asm:(int * string) list =
     (0x3cc10435,            "ldr	   q21, [x1], #16");
     (0x3cc10436,            "ldr	   q22, [x1], #16");
     (0x3cc10437,            "ldr	   q23, [x1], #16");
-    (0x3dc00000,            "ldr	   q0,  [x0");
-    (0x3dc00401,            "ldr	   q1,  [x0, #16");
-    (0x3dc00802,            "ldr	   q2,  [x0, #32");
-    (0x3dc00c03,            "ldr	   q3,  [x0, #48");
+    (0x3dc00000,            "ldr	   q0,  [x0]");
+    (0x3dc00401,            "ldr	   q1,  [x0], #16");
+    (0x3dc00802,            "ldr	   q2,  [x0], #32");
+    (0x3dc00c03,            "ldr	   q3,  [x0], #48");
     (*
        We will assume that x3 contains the location of the KTbl constants, instead of
        computing that address in the program.
