@@ -102,8 +102,8 @@ Exception: Failure "ELF contains relocations".
 
 let sha512_hw_prog_asm:(int * string) list =
   [
-    (* 0xa9bf7bfd;  (*      stp     x29, x30, [sp, #-16]!                               *) *)
-    (* 0x910003fd;  (*      mov     x29, sp                                             *) *)
+    (0xa9bf7bfd,  "stp     x29, x30, [sp, #-16]!");
+    (0x910003fd,  "mov     x29, sp");
     (* -------------------------------  Begin tweaks ------------------------------- *)
     (*
       We replace the following three currently unsupported load instructions with

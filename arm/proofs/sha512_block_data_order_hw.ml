@@ -251,14 +251,6 @@ let MESSAGE_SCHEDULE_I_LT_16_RULE = prove(
   ONCE_ASM_REWRITE_TAC [message_schedule] THEN
   ASM_REWRITE_TAC []);;
 
-(*
-g`forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
- (message_schedule
-    (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-    0) = i0`;;
-e(IMP_REWRITE_TAC[MESSAGE_SCHEDULE_I_LT_16_RULE; EL_CONS] THEN ARITH_TAC);;
-*)
-
 let MESSAGE_SCHEDULE_1_16_RULES = prove( 
  `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
  (message_schedule
@@ -356,7 +348,7 @@ compression_t2 ... = var
 at the assumption of the form
 read <?> s? = <term>
 *)
-let USE_ABBREV_IN_STATE_COMPONENTS_TAC : tactic =
+let ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC : tactic =
   let pat1 = `compression_t1 a b c d = var`
   and pat2 = `compression_t2 x y z = var`
   and pat3 = `read reg state = term` in
@@ -482,7 +474,7 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
 
 (* Augment the OCaml reference variable that stores rewrite rules that will be
    applied after each step of symbolic simulation. *)
-   extra_word_CONV := 
+extra_word_CONV := 
    (GEN_REWRITE_CONV I [WORD_BITMANIP_SIMP_LEMMAS; 
                         REV64_BITMANIP_SIMP_LEMMAS; 
                         SHA512SU1_SU0; SHA512H_RULE; SHA512H2_RULE]) ::
@@ -490,6 +482,20 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
 
 arm_print_log := false;;
 components_print_log := true;;
+
+let INPUT_IN_MEM_P_DEF = new_definition
+  `input_in_mem_p n:num (addr:(64)word) (m:num->num->int64) s = 
+    if n = 0 then T
+    else
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 0) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 1) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 2) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 3) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 4) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 5) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 6) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      read (memory :> bytes128 (word_add (word addr) (word ((16 * 7) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
+      input_in_mem_p (n - 1) addr m s`
 
 g`forall pc retpc sp num_blocks hash_base ktbl_base input_base   
   // input_block 
@@ -586,13 +592,18 @@ ensures arm
        read (memory :> bytes128 (word_add (word hash_base) (word 32))) s = word_join h_f h_e /\
        read (memory :> bytes128 (word_add (word hash_base) (word 48))) s = word_join h_h h_g)
   // Postcondition
-  (\s. // read PC s = word (pc + 2024) /\       
+  (\s. read PC s = word retpc /\
        read X1 s = word input_base + word 128 /\
        // No more blocks are left to hash.
-       read X2 s = word 0 /\ 
+       read X2 s = word 0 /\
        // x3 points to the base address of the KTbl.
        read X3 s = word ktbl_base /\
-       // read (memory :> bytes128 (word hash_base)) s = word_join b a /\
+       // The address hash_base now contains the final hash.
+       read (memory :> bytes128 (word hash_base)) s = word_join b a /\
+       read (memory :> bytes128 (word_add (word hash_base) (word 16))) s = word_join d c /\
+       read (memory :> bytes128 (word_add (word hash_base) (word 32))) s = word_join f e /\
+       read (memory :> bytes128 (word_add (word hash_base) (word 48))) s = word_join h g /\
+       // Registers Q0-Q3 also contain the final hash.
        read Q0 s = word_join b a /\
        read Q1 s = word_join d c /\
        read Q2 s = word_join f e /\
@@ -601,9 +612,8 @@ ensures arm
   (\s s'. T)
   `;;
 
-
 e(REWRITE_TAC[NONOVERLAPPING_CLAUSES; PAIRWISE; ALL; 
-              fst SHA512_HW_EXEC; BIGNUM_FROM_MEMORY_BYTES;
+              fst SHA512_HW_EXEC; BIGNUM_FROM_MEMORY_BYTES; 
               SHA512_SPEC_ONE_BLOCK_RULE]);;
 e(REPEAT STRIP_TAC);;
 e(ENSURES_INIT_TAC "s0");;
@@ -667,20 +677,24 @@ e(RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]));;
 
 (* #### Begin Symbolic Simulation. #### *)
 
-e(ARM_STEPS_TAC SHA512_HW_EXEC (1--12));;
+(* Make sure that the first argument of nonoverlapping_modulo is 2 EXP 64 
+   instead of 18446744073709551616 because the tactics expect the former. *)
+e(RULE_ASSUM_TAC(REWRITE_RULE[SYM(NUM_REDUCE_CONV `2 EXP 64`)]));;
+
+e(ARM_STEPS_TAC SHA512_HW_EXEC (1--14));;
 (* (FIXME) Speed this up.
     Simulate and simplify the REV64 instructions. *)
 e(MAP_EVERY (fun n -> 
               ARM_STEPS_TAC SHA512_HW_EXEC [n] THEN 
               RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
               RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]))
-           (13--20));;
+           (15--22));;
 (* Simulate the unconditional branch instruction. *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (21--21));;
+e(ARM_STEPS_TAC SHA512_HW_EXEC (23--23));;
 (* Now, we are poised to execute the body of the loop. *)
 
 (* 0x3cc10478;  ldr q24, [x3], #16 *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (22--29));;
+e(ARM_STEPS_TAC SHA512_HW_EXEC (24--31));;
 
 (* A crude but quick way of checking if structure sharing is broken: 
    the following functions ought to occur in the goal the specified number of 
@@ -695,89 +709,83 @@ e(ARM_STEPS_TAC SHA512_HW_EXEC (22--29));;
 (* 32: 12-instruction sub-blocks: let's snorkel the simulation again. *)
 
 e(MAP_EVERY (fun n ->
-              let start = 12*(n-1) + 30 in
+              let start = 12*(n-1) + 32 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--5));;
 e(MAP_EVERY (fun n ->
-              let start = 12*(n-1) + 90 in
+              let start = 12*(n-1) + 92 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--5));;            
 e(MAP_EVERY (fun n ->
-              let start = 12*(n-1) + 150 in
+              let start = 12*(n-1) + 152 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--5));;       
 e(MAP_EVERY (fun n ->
-              let start = 12*(n-1) + 210 in
+              let start = 12*(n-1) + 212 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--5));;                   
 e(MAP_EVERY (fun n ->
-              let start = 12*(n-1) + 270 in
+              let start = 12*(n-1) + 272 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--5));;
 e(MAP_EVERY (fun n ->
-              let start = 12*(n-1) + 330 in
+              let start = 12*(n-1) + 332 in
               let stop = start + 11 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--7));;
 
 (* (1--7)/7: 7  11-instruction sub-blocks *)
 e(MAP_EVERY (fun n ->
-              let start = 11*(n-1) + 414 in
+              let start = 11*(n-1) + 416 in
               let stop = start + 10 in
               ARM_STEPS_TAC SHA512_HW_EXEC (start--stop) THEN
               RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
               RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]) THEN
               REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-                          USE_ABBREV_IN_STATE_COMPONENTS_TAC))
+                          ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC))
             (1--7));;
 
 (* 1/1: 1  11-instruction sub-block *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (491--501) THEN
+e(ARM_STEPS_TAC SHA512_HW_EXEC (493--503) THEN
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]) THEN
   REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-              USE_ABBREV_IN_STATE_COMPONENTS_TAC));;
+              ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC));;
 
 (* 1/1: 1  5-instruction sub-block *)
-e(ARM_STEPS_TAC SHA512_HW_EXEC (502--506) THEN
+e(ARM_STEPS_TAC SHA512_HW_EXEC (504--508) THEN
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_BITMANIP_SIMP_LEMMAS; REV64_BITMANIP_SIMP_LEMMAS]) THEN
   REPEAT_N 2 (RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]) THEN 
-              USE_ABBREV_IN_STATE_COMPONENTS_TAC));;
+              ABBREV_CT1_CT2_IN_STATE_COMPONENTS_TAC));;
 
 (* Now we are at the end of the loop. *)
 
-(* 1/1: 1  6-instruction sub-block *)
+(* 1/1: 4-instruction sub-block where Q0-Q3 are 
+        stored at hash_base in the memory. *)
 
-(* [To John] This is the tactic that fails with the following message. 
-    Note that 
-    List.nth sha512_hw_prog_asm 506 
-    is
-    (1031798784, "str q0, [x0]")
+e(RULE_ASSUM_TAC(REWRITE_RULE[SYM(NUM_REDUCE_CONV `2 EXP 64`)]));;
+e(ARM_STEPS_TAC SHA512_HW_EXEC (509--512));;
 
-    The proof still works without the following step and if you
-    elide the following conjunct from the post-condition.
-
-    read (memory :> bytes128 (word hash_base)) s = word_join b a
-*)
-(* e(ARM_STEPS_TAC SHA512_HW_EXEC (507--507));; *)
+(* 1/1: 2-instruction epilogue where x29 is restored and then ret. *)
+e(ARM_STEPS_TAC SHA512_HW_EXEC (513--514));;
 
 (* #### End Symbolic Simulation. #### *)
 
