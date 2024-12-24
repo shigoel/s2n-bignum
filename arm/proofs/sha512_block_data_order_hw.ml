@@ -221,18 +221,8 @@ let SHA512H_RULE = prove(
   REWRITE_TAC[WORD_ADD_AC]);;
 
 (* Simplifying the SHA512 specification functions. *)
-
 let SHA512_SPEC_ONE_BLOCK_RULE = prove(
-`forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
-     sha512 (\i:num j:num. EL j 
-              [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9;i10; i11; i12; i13; i14; i15]) 
-            1
-     = 
-     add8
-        (compression 
-          0 h_init
-          (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15]))
-        h_init`,
+`forall m. sha512 m 1 = add8 (compression 0 h_init (m 0)) h_init`,
     REPEAT STRIP_TAC THEN
     ONCE_REWRITE_TAC [sha512] THEN CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
     ONCE_REWRITE_TAC [sha512] THEN CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
@@ -241,101 +231,47 @@ let SHA512_SPEC_ONE_BLOCK_RULE = prove(
     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV));;  
 
 let MESSAGE_SCHEDULE_I_LT_16_RULE = prove(    
- `forall n i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
+ `forall n mi.
   n < 16 ==>
-  (message_schedule
-     (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-     n) =
-  EL n [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15]`,
+  (message_schedule mi n) = (mi n)`,
   REPEAT STRIP_TAC THEN
   ONCE_ASM_REWRITE_TAC [message_schedule] THEN
   ASM_REWRITE_TAC []);;
 
-let MESSAGE_SCHEDULE_1_16_RULES = prove( 
- `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.
- (message_schedule
-    (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-    0) = i0 
- /\
- (message_schedule
-   (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-   1) = i1
- /\
- (message_schedule
-   (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-   2) = i2
- /\
- (message_schedule
-   (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-   3) = i3 
- /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  4) = i4 
- /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  5) = i5
- /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  6) = i6
- /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  7) = i7
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  8) = i8
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  9) = i9
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  10) = i10
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  11) = i11
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  12) = i12 
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  13) = i13 
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  14) = i14 
-  /\
- (message_schedule
-  (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-  15) = i15`,
-  IMP_REWRITE_TAC[MESSAGE_SCHEDULE_I_LT_16_RULE; EL_CONS] THEN 
+let MESSAGE_SCHEDULE_1_16_RULES = prove(
+ `forall mi.
+ (message_schedule mi  0) = (mi 0) /\
+ (message_schedule mi  1) = (mi 1) /\
+ (message_schedule mi  2) = (mi 2) /\
+ (message_schedule mi  3) = (mi 3) /\
+ (message_schedule mi  4) = (mi 4) /\
+ (message_schedule mi  5) = (mi 5) /\
+ (message_schedule mi  6) = (mi 6) /\
+ (message_schedule mi  7) = (mi 7) /\
+ (message_schedule mi  8) = (mi 8) /\
+ (message_schedule mi  9) = (mi 9) /\
+ (message_schedule mi 10) = (mi 10) /\
+ (message_schedule mi 11) = (mi 11) /\
+ (message_schedule mi 12) = (mi 12) /\
+ (message_schedule mi 13) = (mi 13) /\
+ (message_schedule mi 14) = (mi 14) /\
+ (message_schedule mi 15) = (mi 15)`,
+  IMP_REWRITE_TAC[MESSAGE_SCHEDULE_I_LT_16_RULE] THEN 
   CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV));;
 
 let MESSAGE_SCHEDULE_16_RULE = prove(
-   `forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.   
-   (message_schedule
-      (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-      16) =
-   message_schedule_word i14 i9 i1 i0`,
+   `forall mi.
+   (message_schedule mi 16) =
+   message_schedule_word (mi 14) (mi 9) (mi 1) (mi 0)`,
    REPEAT STRIP_TAC THEN
    ONCE_ASM_REWRITE_TAC [message_schedule] THEN
    CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
    REWRITE_TAC[MESSAGE_SCHEDULE_1_16_RULES]);;
 
 let MESSAGE_SCHEDULE_17_RULE = prove(
-`forall i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15.   
-   (message_schedule
-      (\j. EL j [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9; i10; i11; i12; i13; i14; i15])
-      17) =
-    message_schedule_word i15 i10 i2 i1`,
+`forall mi.
+   (message_schedule mi 17) =
+    message_schedule_word (mi 15) (mi 10) (mi 2) (mi 1)`,
     REPEAT STRIP_TAC THEN
     ONCE_ASM_REWRITE_TAC [message_schedule] THEN
     CONV_TAC(TOP_DEPTH_CONV NUM_RED_CONV) THEN
@@ -442,12 +378,7 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
     let pat1 = `message_schedule m i = var` in
     let h_ms = ("H_ms_" ^ (string_of_int n)) in
     let ms_lhs = mk_comb 
-                  (`message_schedule
-                      (\j. EL j [i0; i1; i2; i3; 
-                                 i4; i5; i6; i7; 
-                                 i8; i9; i10; i11; 
-                                 i12; i13; i14; i15])`,
-                    (mk_small_numeral n)) in    
+                  (`message_schedule (m 0)`, (mk_small_numeral n)) in
     let ms_rhs = mk_var(("ms_" ^ (string_of_int n)), `:((64)word)`) in
     let ms_term = mk_eq(ms_lhs, ms_rhs) in    
     fun (asl, w as gl) ->
@@ -472,6 +403,28 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
 (* Correctness proof.                                                        *)
 (* ------------------------------------------------------------------------- *)
 
+(*
+We use word_bytereverse below for each input word because they 
+are in big-endian format, and this Arm machine is little-endian. 
+The SHA512 specification expects the input as a big-endian value, and
+REV64 instructions in the program change the endianness of 
+the input words, so we will subsequently see 
+(word_bytereverse (word_bytereverse i0)) = i0 in the rest of the program.
+*)
+let INPUT_IN_MEM_P_DEF = define
+  `input_in_mem_p (n:num) (addr:(64)word) (m:num->num->int64) s : bool = 
+    if n = 0 then T
+    else
+      read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  1)) (word_bytereverse (m (n - 1)  0)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  3)) (word_bytereverse (m (n - 1)  2)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  5)) (word_bytereverse (m (n - 1)  4)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  7)) (word_bytereverse (m (n - 1)  6)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  9)) (word_bytereverse (m (n - 1)  8)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1) 11)) (word_bytereverse (m (n - 1) 10)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1) 13)) (word_bytereverse (m (n - 1) 12)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1) 15)) (word_bytereverse (m (n - 1) 14)) /\
+      input_in_mem_p (n - 1) addr (m:num->num->int64) s`;;
+
 (* Augment the OCaml reference variable that stores rewrite rules that will be
    applied after each step of symbolic simulation. *)
 extra_word_CONV := 
@@ -483,23 +436,9 @@ extra_word_CONV :=
 arm_print_log := false;;
 components_print_log := true;;
 
-let INPUT_IN_MEM_P_DEF = new_definition
-  `input_in_mem_p n:num (addr:(64)word) (m:num->num->int64) s = 
-    if n = 0 then T
-    else
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 0) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 1) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 2) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 3) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 4) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 5) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 6) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      read (memory :> bytes128 (word_add (word addr) (word ((16 * 7) + (16 * (n - 1) * 8))))) s = (m (n - 1) 0) /\
-      input_in_mem_p (n - 1) addr m s`
-
 g`forall pc retpc sp num_blocks hash_base ktbl_base input_base   
-  // input_block 
-  i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10 i11 i12 i13 i14 i15 
+  // input message
+  (m:num->num->int64)
   // final hash
   a b c d e f g h.
 // We fix the number of blocks to hash to 1.
@@ -510,10 +449,7 @@ PAIRWISE nonoverlapping
    (word hash_base:int64, 64);
    (word input_base:int64, 16 * 8 * num_blocks);
    (word ktbl_base:int64, 80 * 8)] /\
-(a, b, c, d, e, f, g, h) = 
-    sha512 (\i:num j:num. EL j 
-              [i0; i1; i2; i3; i4; i5; i6; i7; i8; i9;i10; i11; i12; i13; i14; i15]) 
-            1
+(a, b, c, d, e, f, g, h) = sha512 m num_blocks
 ==>
 ensures arm
   // Precondition
@@ -526,8 +462,7 @@ ensures arm
        read X3 s  = word ktbl_base /\
        read X2 s  = word num_blocks /\
        read SP s  = word_add (word sp) (word 128) /\
-       // KTbl constants are in memory.
-       // bignum_from_memory (word ktbl_base, 80) s = ktbl_bignum /\
+       // KTbl constants are in memory.       
        read (memory :> bytes128 (word ktbl_base))                           s = word_join (K  1) (K  0) /\ 
        read (memory :> bytes128 (word_add (word ktbl_base) (word 16)))      s = word_join (K  3) (K  2) /\ 
        read (memory :> bytes128 (word_add (word ktbl_base) (word (16*2))))  s = word_join (K  5) (K  4) /\ 
@@ -568,25 +503,9 @@ ensures arm
        read (memory :> bytes128 (word_add (word ktbl_base) (word (16*37)))) s = word_join (K 75) (K 74) /\ 
        read (memory :> bytes128 (word_add (word ktbl_base) (word (16*38)))) s = word_join (K 77) (K 76) /\ 
        read (memory :> bytes128 (word_add (word ktbl_base) (word (16*39)))) s = word_join (K 79) (K 78) /\ 
-       // One input block is in memory.       
-       // bignum_from_memory (word input_base, 16) s = input_block /\
-       // We use word_bytereverse below for each input word i0-i15 because they 
-       // are in big-endian format, and this Arm machine is little-endian.
-       //
-       // The SHA512 specification expects the input as a big-endian value, and
-       // REV64 instructions in the program change the endianness of 
-       // the input words, so we will subsequently see 
-       // (word_bytereverse (word_bytereverse i0)) = i0 in the rest of the program.
-       read (memory :> bytes128 (word input_base))                       s = word_join (word_bytereverse  (i1 : 64 word)) (word_bytereverse  (i0 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word  16))) s = word_join (word_bytereverse  (i3 : 64 word)) (word_bytereverse  (i2 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word  32))) s = word_join (word_bytereverse  (i5 : 64 word)) (word_bytereverse  (i4 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word  48))) s = word_join (word_bytereverse  (i7 : 64 word)) (word_bytereverse  (i6 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word  64))) s = word_join (word_bytereverse  (i9 : 64 word)) (word_bytereverse  (i8 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word  80))) s = word_join (word_bytereverse (i11 : 64 word)) (word_bytereverse (i10 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word  96))) s = word_join (word_bytereverse (i13 : 64 word)) (word_bytereverse (i12 : 64 word)) /\
-       read (memory :> bytes128 (word_add (word input_base) (word 112))) s = word_join (word_bytereverse (i15 : 64 word)) (word_bytereverse (i14 : 64 word)) /\
-       // init_hash is stored at address hash_base.
-       // bignum_from_memory (word hash_base, 8) s = init_hash
+       // Input is in the memory.
+       input_in_mem_p num_blocks (word input_base) m s /\
+       // init_hash is stored at address hash_base.       
        read (memory :> bytes128 (word hash_base))                      s = word_join h_b h_a /\
        read (memory :> bytes128 (word_add (word hash_base) (word 16))) s = word_join h_d h_c /\
        read (memory :> bytes128 (word_add (word hash_base) (word 32))) s = word_join h_f h_e /\
@@ -612,15 +531,18 @@ ensures arm
   (\s s'. T)
   `;;
 
-e(REWRITE_TAC[NONOVERLAPPING_CLAUSES; PAIRWISE; ALL; 
-              fst SHA512_HW_EXEC; BIGNUM_FROM_MEMORY_BYTES; 
-              SHA512_SPEC_ONE_BLOCK_RULE]);;
-e(REPEAT STRIP_TAC);;
-e(ENSURES_INIT_TAC "s0");;
 
-(* Reduce 16*<n> in the assumptions to a concrete number, otherwise 
-   we may lose the loads' effects during simulation. *)
-e(RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV NUM_RED_CONV)));;
+e(REWRITE_TAC[NONOVERLAPPING_CLAUSES; PAIRWISE; ALL; 
+              fst SHA512_HW_EXEC; BIGNUM_FROM_MEMORY_BYTES]);;
+e(ONCE_REWRITE_TAC[INPUT_IN_MEM_P_DEF]);;
+e(REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[]);;
+e(CONV_TAC (TOP_DEPTH_CONV NUM_RED_CONV));;
+e(ONCE_REWRITE_TAC[INPUT_IN_MEM_P_DEF]);;
+e(CONV_TAC (TOP_DEPTH_CONV NUM_RED_CONV));;
+e(ENSURES_INIT_TAC "s0");;
+(* Substitute num_blocks. *)
+e(FIRST_X_ASSUM SUBST_VAR_TAC);;
+e(RULE_ASSUM_TAC(REWRITE_RULE [SHA512_SPEC_ONE_BLOCK_RULE]));;
 
 (* #### Expand and simplify the specification function compression. #### *)
 e(COMPRESSION_EXPAND_INIT_TAC);;   
@@ -631,12 +553,7 @@ e(MAP_EVERY (fun i -> (COMPRESSION_EXPAND_TAC THEN
 
 e(ABBREV_FIRST_OCC_IN_ASM_TAC 16 "ms_" `message_schedule`);;
 e(LABEL_TAC "H_ms_16" 
-              (ASSUME `(message_schedule
-                        (\j. EL j [i0; i1; i2; i3; 
-                                   i4; i5; i6; i7; 
-                                   i8; i9; i10; i11; 
-                                   i12; i13; i14; i15])
-                       16) = ms_16`));;
+              (ASSUME `(message_schedule (m 0) 16) = ms_16`));;
 e(REMOVE_THEN "H_ms_16" 
             (fun th -> 
               let th' = REWRITE_RULE [MESSAGE_SCHEDULE_16_RULE] th in
@@ -647,12 +564,7 @@ e(COMPRESSION_EXPAND_TAC THEN
   ABBREV_FIRST_OCC_IN_ASM_TAC 16 "ct2_" `compression_t2`);; 
 e(ABBREV_FIRST_OCC_IN_ASM_TAC 17 "ms_" `message_schedule`);;
 e(LABEL_TAC "H_ms_17" 
-            (ASSUME `(message_schedule
-                      (\j. EL j [i0; i1; i2; i3; 
-                                 i4; i5; i6; i7; 
-                                 i8; i9; i10; i11; 
-                                 i12; i13; i14; i15])
-                     17) = ms_17`));;
+            (ASSUME `(message_schedule (m 0) 17) = ms_17`));;
 e(REMOVE_THEN "H_ms_17" 
             (fun th -> 
                 let th' = REWRITE_RULE [MESSAGE_SCHEDULE_17_RULE] th in
@@ -671,7 +583,7 @@ simplified away all message_schedule calls. *)
 e(DISCARD_MATCHING_ASSUMPTIONS [`message_schedule m i = var`]);;  
 e(RULE_ASSUM_TAC(REWRITE_RULE[add8; PAIR_EQ]));;
 (* Normalize w.r.t. word_add *)
-e(RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC]));;
+e(RULE_ASSUM_TAC(PURE_REWRITE_RULE[WORD_ADD_AC; WORD_ADD_0]));;
 
 (* #### End of simplifying the specification function compression. #### *)
 
