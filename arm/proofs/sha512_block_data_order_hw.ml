@@ -221,6 +221,19 @@ let SHA512H_RULE = prove(
   REWRITE_TAC[WORD_ADD_AC]);;
 
 (* Simplifying the SHA512 specification functions. *)
+
+let SHA512_UNWIND_RULE = prove(  
+ `forall m n.
+  0 < n ==>
+  sha512 m n = 
+  add8 (compression 0 (sha512 m (n - 1)) (m (n - 1))) (sha512 m (n - 1))`,  
+  ASM_REWRITE_TAC[ARITH_RULE `0 < n <=> ~(n = 0)`] THEN
+  REPEAT STRIP_TAC THEN
+  CONV_TAC (RATOR_CONV (ONCE_REWRITE_CONV [sha512])) THEN
+  ASM_SIMP_TAC[sha512_block] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REFL_TAC);;
+
 let SHA512_SPEC_ONE_BLOCK_RULE = prove(
 `forall m. sha512 m 1 = add8 (compression 0 h_init (m 0)) h_init`,
     REPEAT STRIP_TAC THEN
@@ -399,10 +412,6 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
           let th' = REWRITE_RULE abbrev_thms th' in
           ASSUME_TAC th')) gl;;
 
-(* ------------------------------------------------------------------------- *)
-(* Correctness proof.                                                        *)
-(* ------------------------------------------------------------------------- *)
-
 (*
 We use word_bytereverse below for each input word because they 
 are in big-endian format, and this Arm machine is little-endian. 
@@ -412,18 +421,84 @@ the input words, so we will subsequently see
 (word_bytereverse (word_bytereverse i0)) = i0 in the rest of the program.
 *)
 let INPUT_IN_MEM_P_DEF = define
-  `input_in_mem_p (n:num) (addr:(64)word) (m:num->num->int64) s : bool = 
+  `input_in_mem_p (n:num) (count:num) (addr:(64)word) (m:num->num->int64) s : bool = 
     if n = 0 then T
     else
-      read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  1)) (word_bytereverse (m (n - 1)  0)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  3)) (word_bytereverse (m (n - 1)  2)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  5)) (word_bytereverse (m (n - 1)  4)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  7)) (word_bytereverse (m (n - 1)  6)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1)  9)) (word_bytereverse (m (n - 1)  8)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1) 11)) (word_bytereverse (m (n - 1) 10)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1) 13)) (word_bytereverse (m (n - 1) 12)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * (n - 1) * 8))))) s = word_join (word_bytereverse (m (n - 1) 15)) (word_bytereverse (m (n - 1) 14)) /\
-      input_in_mem_p (n - 1) addr (m:num->num->int64) s`;;
+      read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  1)) (word_bytereverse (m count  0)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  3)) (word_bytereverse (m count  2)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  5)) (word_bytereverse (m count  4)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  7)) (word_bytereverse (m count  6)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  9)) (word_bytereverse (m count  8)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 11)) (word_bytereverse (m count 10)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 13)) (word_bytereverse (m count 12)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 15)) (word_bytereverse (m count 14)) /\
+      input_in_mem_p (n - 1) (count + 1) addr (m:num->num->int64) s`;;
+
+let INPUT_IN_MEMP_GT_0_RULE = prove(
+ `forall n count addr m s. 
+  0 < n ==>
+  (input_in_mem_p n count addr m s) =
+  (read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  1)) (word_bytereverse (m count  0)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  3)) (word_bytereverse (m count  2)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  5)) (word_bytereverse (m count  4)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  7)) (word_bytereverse (m count  6)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  9)) (word_bytereverse (m count  8)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 11)) (word_bytereverse (m count 10)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 13)) (word_bytereverse (m count 12)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 15)) (word_bytereverse (m count 14)) /\
+   input_in_mem_p (n - 1) (count + 1) addr m s)`,
+   ASM_REWRITE_TAC[ARITH_RULE `0 < n <=> ~(n = 0)`] THEN
+   REPEAT_N 6 STRIP_TAC THEN
+   CONV_TAC (RATOR_CONV (ONCE_REWRITE_CONV [INPUT_IN_MEM_P_DEF])) THEN
+   ASM_SIMP_TAC[]);;
+
+let KTBL_IN_MEM_P_DEF = define
+  `ktbl_in_mem_p (ktbl_base:(64)word) s : bool = 
+   (read (memory :> bytes128 ktbl_base)                           s = word_join (K  1) (K  0) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word 16)))      s = word_join (K  3) (K  2) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*2))))  s = word_join (K  5) (K  4) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*3))))  s = word_join (K  7) (K  6) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*4))))  s = word_join (K  9) (K  8) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*5))))  s = word_join (K 11) (K 10) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*6))))  s = word_join (K 13) (K 12) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*7))))  s = word_join (K 15) (K 14) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*8))))  s = word_join (K 17) (K 16) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*9))))  s = word_join (K 19) (K 18) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*10)))) s = word_join (K 21) (K 20) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*11)))) s = word_join (K 23) (K 22) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*12)))) s = word_join (K 25) (K 24) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*13)))) s = word_join (K 27) (K 26) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*14)))) s = word_join (K 29) (K 28) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*15)))) s = word_join (K 31) (K 30) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*16)))) s = word_join (K 33) (K 32) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*17)))) s = word_join (K 35) (K 34) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*18)))) s = word_join (K 37) (K 36) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*19)))) s = word_join (K 39) (K 38) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*20)))) s = word_join (K 41) (K 40) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*21)))) s = word_join (K 43) (K 42) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*22)))) s = word_join (K 45) (K 44) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*23)))) s = word_join (K 47) (K 46) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*24)))) s = word_join (K 49) (K 48) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*25)))) s = word_join (K 51) (K 50) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*26)))) s = word_join (K 53) (K 52) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*27)))) s = word_join (K 55) (K 54) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*28)))) s = word_join (K 57) (K 56) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*29)))) s = word_join (K 59) (K 58) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*30)))) s = word_join (K 61) (K 60) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*31)))) s = word_join (K 63) (K 62) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*32)))) s = word_join (K 65) (K 64) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*33)))) s = word_join (K 67) (K 66) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*34)))) s = word_join (K 69) (K 68) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*35)))) s = word_join (K 71) (K 70) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*36)))) s = word_join (K 73) (K 72) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*37)))) s = word_join (K 75) (K 74) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*38)))) s = word_join (K 77) (K 76) /\ 
+    read (memory :> bytes128 (word_add ktbl_base (word (16*39)))) s = word_join (K 79) (K 78))`;;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Correctness proof.                                                        *)
+(* ------------------------------------------------------------------------- *)
 
 (* Augment the OCaml reference variable that stores rewrite rules that will be
    applied after each step of symbolic simulation. *)
@@ -441,7 +516,7 @@ g`forall pc retpc sp num_blocks hash_base ktbl_base input_base
   (m:num->num->int64)
   // final hash
   a b c d e f g h.
-// We fix the number of blocks to hash to 1.
+// The number of blocks to hash is exactly 1.
 num_blocks = 1 /\
 // No aliasing among all memory regions of interest.
 PAIRWISE nonoverlapping
@@ -462,49 +537,10 @@ ensures arm
        read X3 s  = word ktbl_base /\
        read X2 s  = word num_blocks /\
        read SP s  = word_add (word sp) (word 128) /\
-       // KTbl constants are in memory.       
-       read (memory :> bytes128 (word ktbl_base))                           s = word_join (K  1) (K  0) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word 16)))      s = word_join (K  3) (K  2) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*2))))  s = word_join (K  5) (K  4) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*3))))  s = word_join (K  7) (K  6) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*4))))  s = word_join (K  9) (K  8) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*5))))  s = word_join (K 11) (K 10) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*6))))  s = word_join (K 13) (K 12) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*7))))  s = word_join (K 15) (K 14) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*8))))  s = word_join (K 17) (K 16) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*9))))  s = word_join (K 19) (K 18) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*10)))) s = word_join (K 21) (K 20) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*11)))) s = word_join (K 23) (K 22) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*12)))) s = word_join (K 25) (K 24) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*13)))) s = word_join (K 27) (K 26) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*14)))) s = word_join (K 29) (K 28) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*15)))) s = word_join (K 31) (K 30) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*16)))) s = word_join (K 33) (K 32) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*17)))) s = word_join (K 35) (K 34) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*18)))) s = word_join (K 37) (K 36) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*19)))) s = word_join (K 39) (K 38) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*20)))) s = word_join (K 41) (K 40) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*21)))) s = word_join (K 43) (K 42) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*22)))) s = word_join (K 45) (K 44) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*23)))) s = word_join (K 47) (K 46) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*24)))) s = word_join (K 49) (K 48) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*25)))) s = word_join (K 51) (K 50) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*26)))) s = word_join (K 53) (K 52) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*27)))) s = word_join (K 55) (K 54) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*28)))) s = word_join (K 57) (K 56) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*29)))) s = word_join (K 59) (K 58) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*30)))) s = word_join (K 61) (K 60) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*31)))) s = word_join (K 63) (K 62) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*32)))) s = word_join (K 65) (K 64) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*33)))) s = word_join (K 67) (K 66) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*34)))) s = word_join (K 69) (K 68) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*35)))) s = word_join (K 71) (K 70) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*36)))) s = word_join (K 73) (K 72) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*37)))) s = word_join (K 75) (K 74) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*38)))) s = word_join (K 77) (K 76) /\ 
-       read (memory :> bytes128 (word_add (word ktbl_base) (word (16*39)))) s = word_join (K 79) (K 78) /\ 
+       // KTbl constants are in the memory.
+       ktbl_in_mem_p (word ktbl_base) s /\
        // Input is in the memory.
-       input_in_mem_p num_blocks (word input_base) m s /\
+       input_in_mem_p num_blocks 0 (word input_base) m s /\
        // init_hash is stored at address hash_base.       
        read (memory :> bytes128 (word hash_base))                      s = word_join h_b h_a /\
        read (memory :> bytes128 (word_add (word hash_base) (word 16))) s = word_join h_d h_c /\
@@ -533,16 +569,15 @@ ensures arm
 
 
 e(REWRITE_TAC[NONOVERLAPPING_CLAUSES; PAIRWISE; ALL; 
-              fst SHA512_HW_EXEC; BIGNUM_FROM_MEMORY_BYTES]);;
-e(ONCE_REWRITE_TAC[INPUT_IN_MEM_P_DEF]);;
-e(REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[]);;
-e(CONV_TAC (TOP_DEPTH_CONV NUM_RED_CONV));;
-e(ONCE_REWRITE_TAC[INPUT_IN_MEM_P_DEF]);;
-e(CONV_TAC (TOP_DEPTH_CONV NUM_RED_CONV));;
-e(ENSURES_INIT_TAC "s0");;
+              fst SHA512_HW_EXEC; BIGNUM_FROM_MEMORY_BYTES;
+              KTBL_IN_MEM_P_DEF]);;
+e(REPEAT STRIP_TAC);;
 (* Substitute num_blocks. *)
 e(FIRST_X_ASSUM SUBST_VAR_TAC);;
 e(RULE_ASSUM_TAC(REWRITE_RULE [SHA512_SPEC_ONE_BLOCK_RULE]));;
+e(ONCE_SIMP_TAC[INPUT_IN_MEM_P_DEF]);;
+e(CONV_TAC (TOP_DEPTH_CONV NUM_RED_CONV));;
+e(ENSURES_INIT_TAC "s0");;
 
 (* #### Expand and simplify the specification function compression. #### *)
 e(COMPRESSION_EXPAND_INIT_TAC);;   

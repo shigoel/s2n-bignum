@@ -139,7 +139,9 @@ let sha512_hw_prog_asm:(int * string) list =
     (0x4e200ab5,  "rev64   v21.16b, v21.16b");
     (0x4e200ad6,  "rev64   v22.16b, v22.16b");
     (0x4e200af7,  "rev64   v23.16b, v23.16b");
-    (0x14000001,  "b       0xe80 <sha512_block_data_order_hw+0x40");
+    (* The following instruction is an unconditional branch to (current_pc + 0x4), i.e., 
+       the next instruction. *)
+    (0x14000001,  "b       0xe80 <sha512_block_data_order_hw+0x40"); 
     (* -------------------------------  Begin tweaks ------------------------------- *)
     (* 0x4cdf7c78;  (*      ld1     { v24.2d }, [x3], #16                            *) *)
     (0x3cc10478,  "ldr	   q24, [x3], #16");
