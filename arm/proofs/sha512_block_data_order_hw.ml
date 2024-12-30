@@ -412,46 +412,6 @@ let COMPRESSION_UNWIND_TAC (n:int) : tactic =
           let th' = REWRITE_RULE abbrev_thms th' in
           ASSUME_TAC th')) gl;;
 
-(*
-We use word_bytereverse below for each input word because they 
-are in big-endian format, and this Arm machine is little-endian. 
-The SHA512 specification expects the input as a big-endian value, and
-REV64 instructions in the program change the endianness of 
-the input words, so we will subsequently see 
-(word_bytereverse (word_bytereverse i0)) = i0 in the rest of the program.
-*)
-let INPUT_IN_MEM_P_DEF = define
-  `input_in_mem_p (n:num) (count:num) (addr:(64)word) (m:num->num->int64) s : bool = 
-    if n = 0 then T
-    else
-      read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  1)) (word_bytereverse (m count  0)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  3)) (word_bytereverse (m count  2)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  5)) (word_bytereverse (m count  4)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  7)) (word_bytereverse (m count  6)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  9)) (word_bytereverse (m count  8)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 11)) (word_bytereverse (m count 10)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 13)) (word_bytereverse (m count 12)) /\
-      read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 15)) (word_bytereverse (m count 14)) /\
-      input_in_mem_p (n - 1) (count + 1) addr (m:num->num->int64) s`;;
-
-let INPUT_IN_MEMP_GT_0_RULE = prove(
- `forall n count addr m s. 
-  0 < n ==>
-  (input_in_mem_p n count addr m s) =
-  (read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  1)) (word_bytereverse (m count  0)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  3)) (word_bytereverse (m count  2)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  5)) (word_bytereverse (m count  4)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  7)) (word_bytereverse (m count  6)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  9)) (word_bytereverse (m count  8)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 11)) (word_bytereverse (m count 10)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 13)) (word_bytereverse (m count 12)) /\
-   read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 15)) (word_bytereverse (m count 14)) /\
-   input_in_mem_p (n - 1) (count + 1) addr m s)`,
-   ASM_REWRITE_TAC[ARITH_RULE `0 < n <=> ~(n = 0)`] THEN
-   REPEAT_N 6 STRIP_TAC THEN
-   CONV_TAC (RATOR_CONV (ONCE_REWRITE_CONV [INPUT_IN_MEM_P_DEF])) THEN
-   ASM_SIMP_TAC[]);;
-
 let KTBL_IN_MEM_P_DEF = define
   `ktbl_in_mem_p (ktbl_base:(64)word) s : bool = 
    (read (memory :> bytes128 ktbl_base)                           s = word_join (K  1) (K  0) /\ 
@@ -495,6 +455,45 @@ let KTBL_IN_MEM_P_DEF = define
     read (memory :> bytes128 (word_add ktbl_base (word (16*38)))) s = word_join (K 77) (K 76) /\ 
     read (memory :> bytes128 (word_add ktbl_base (word (16*39)))) s = word_join (K 79) (K 78))`;;
 
+(*
+We use word_bytereverse below for each input word because they 
+are in big-endian format, and this Arm machine is little-endian. 
+The SHA512 specification expects the input as a big-endian value, and
+REV64 instructions in the program change the endianness of 
+the input words, so we will subsequently see 
+(word_bytereverse (word_bytereverse i0)) = i0 in the rest of the program.
+*)
+let INPUT_IN_MEM_P_DEF = define
+  `input_in_mem_p (n:num) (count:num) (addr:(64)word) (m:num->num->int64) s : bool = 
+    if n = 0 then T
+    else
+      read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  1)) (word_bytereverse (m count  0)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  3)) (word_bytereverse (m count  2)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  5)) (word_bytereverse (m count  4)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  7)) (word_bytereverse (m count  6)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  9)) (word_bytereverse (m count  8)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 11)) (word_bytereverse (m count 10)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 13)) (word_bytereverse (m count 12)) /\
+      read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 15)) (word_bytereverse (m count 14)) /\
+      input_in_mem_p (n - 1) (count + 1) addr (m:num->num->int64) s`;;
+
+let INPUT_IN_MEMP_GT_0_RULE = prove(
+ `forall n count addr m s. 
+  0 < n ==>
+  (input_in_mem_p n count addr m s) =
+  (read (memory :> bytes128 (word_add addr (word ((16 * 0) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  1)) (word_bytereverse (m count  0)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 1) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  3)) (word_bytereverse (m count  2)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 2) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  5)) (word_bytereverse (m count  4)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 3) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  7)) (word_bytereverse (m count  6)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 4) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count  9)) (word_bytereverse (m count  8)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 5) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 11)) (word_bytereverse (m count 10)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 6) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 13)) (word_bytereverse (m count 12)) /\
+   read (memory :> bytes128 (word_add addr (word ((16 * 7) + (16 * 8 * count))))) s = word_join (word_bytereverse (m count 15)) (word_bytereverse (m count 14)) /\
+   input_in_mem_p (n - 1) (count + 1) addr m s)`,
+   ASM_REWRITE_TAC[ARITH_RULE `0 < n <=> ~(n = 0)`] THEN
+   REPEAT_N 6 STRIP_TAC THEN
+   CONV_TAC (RATOR_CONV (ONCE_REWRITE_CONV [INPUT_IN_MEM_P_DEF])) THEN
+   ASM_SIMP_TAC[]);;
 
 (* ------------------------------------------------------------------------- *)
 (* Correctness proof.                                                        *)
