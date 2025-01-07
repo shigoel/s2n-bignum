@@ -528,8 +528,8 @@ PAIRWISE nonoverlapping
 ensures arm
   // Precondition
   (\s. aligned_bytes_loaded s (word pc) sha512_hw_mc /\
-       aligned 16 (word sp:int64) /\ 
        read PC s  = word pc  /\
+       aligned 16 (word sp:int64) /\        
        read X30 s = word retpc /\
        read X0 s  = word hash_base /\
        read X1 s  = word input_base /\
@@ -579,7 +579,7 @@ e(CONV_TAC (TOP_DEPTH_CONV NUM_RED_CONV));;
 e(ENSURES_INIT_TAC "s0");;
 
 (* #### Expand and simplify the specification function compression. #### *)
-e(COMPRESSION_EXPAND_INIT_TAC);;   
+e(COMPRESSION_EXPAND_INIT_TAC);;
 e(MAP_EVERY (fun i -> (COMPRESSION_EXPAND_TAC THEN
                        ABBREV_FIRST_OCC_IN_ASM_TAC i "ct1_" `compression_t1` THEN
                        ABBREV_FIRST_OCC_IN_ASM_TAC i "ct2_" `compression_t2`))
@@ -737,3 +737,24 @@ e(ARM_STEPS_TAC SHA512_HW_EXEC (513--514));;
 
 e(ENSURES_FINAL_STATE_TAC);;
 e(ASM_REWRITE_TAC[]);;
+
+
+(*
+`nonoverlapping_modulo (2 EXP 64) (sp,128) (pc,2056)`]
+  1 [`nonoverlapping_modulo (2 EXP 64) (sp,128) (hash_base,64)`]
+  2 [`nonoverlapping_modulo (2 EXP 64) (sp,128) (input_base,128)`]
+  3 [`nonoverlapping_modulo (2 EXP 64) (sp,128) (ktbl_base,640)`]
+  4 [`nonoverlapping_modulo (2 EXP 64) (pc,2056) (hash_base,64)`]
+  5 [`nonoverlapping_modulo (2 EXP 64) (pc,2056) (input_base,128)`]
+  6 [`nonoverlapping_modulo (2 EXP 64) (pc,2056) (ktbl_base,640)`]
+  7 [`nonoverlapping_modulo (2 EXP 64) (hash_base,64) (input_base,128)`]
+  8 [`nonoverlapping_modulo (2 EXP 64) (hash_base,64) (ktbl_base,640)`]
+  9 [`nonoverlapping_modulo (2 EXP 64) (input_base,128) (ktbl_base,640)`]
+  ...
+  257 [`read (memory :> bytes64 (word sp + word 120)) s508 = word retpc`]
+  258 [`read SP s508 = word sp + word 112`]
+  259 [`read X30 s508 = word retpc`]
+  ...
+  313 [`read X29 s508 = word sp + word 112`]
+
+*)

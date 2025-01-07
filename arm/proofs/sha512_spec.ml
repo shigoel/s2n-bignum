@@ -160,26 +160,52 @@ let compression_t1 = define
   `compression_t1 e f g h kt wt = h + Sigma1(e) + Ch(e,f,g) + kt + wt`;;
 *)
 
-let compression_t2 = define
-  `compression_t2 a b c = Sigma0(a) + Maj(a,b,c)`;;
-
-(*
-let compression_update = define
- `compression_update (a,b,c,d,e,f,g,h) ki wi =
-    let t1 = compression_t1 e f g h ki wi in
-    let t2 = compression_t2 a b c in
-    (t1 + t2, a, b, c, d + t1, e, f, g)`;;
-*)
-
 let compression_t1 = define
   `compression_t1 e f g h = h + Sigma1(e) + Ch(e,f,g)`;;
 
+let compression_t2 = define
+  `compression_t2 a b c = Sigma0(a) + Maj(a,b,c)`;;
+
+let SHA512_A = define 
+  `SHA512_A(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = a`;;
+let SHA512_B = define 
+  `SHA512_B(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = b`;;
+let SHA512_C = define 
+  `SHA512_C(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = c`;;
+let SHA512_D = define 
+  `SHA512_D(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = d`;;
+let SHA512_E = define 
+  `SHA512_E(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = e`;;
+let SHA512_F = define 
+  `SHA512_F(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = f`;;
+let SHA512_G = define 
+  `SHA512_G(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = g`;;
+let SHA512_H = define 
+  `SHA512_H(a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64) = h`;;                
+
+(*
 let compression_update = define
  `compression_update (a,b,c,d,e,f,g,h) ki wi =
     let t1 = (compression_t1 e f g h) + ki + wi in
     let t2 = compression_t2 a b c in
     (t1 + t2, a, b, c, d + t1, e, f, g)`;;
+*)
 
+let compression_update = define
+ `compression_update hash ki wi =
+    let a = SHA512_A hash in
+    let b = SHA512_B hash in
+    let c = SHA512_C hash in
+    let d = SHA512_D hash in
+    let e = SHA512_E hash in
+    let f = SHA512_F hash in
+    let g = SHA512_G hash in
+    let h = SHA512_H hash in
+    let t1 = (compression_t1 e f g h) + ki + wi in
+    let t2 = compression_t2 a b c in
+    (t1 + t2, a, b, c, d + t1, e, f, g)`;;
+
+(*
 let compression = define
   `compression (i:num) (a,b,c,d,e,f,g,h) (m:num->int64) =
       if i < 80 then
@@ -189,11 +215,43 @@ let compression = define
         compression (i + 1) update m
       else 
         (a,b,c,d,e,f,g,h)`;;
+*)        
+let compression = define
+  `compression (i:num) hash (m:num->int64) =
+      if i < 80 then
+        let ki = K i in
+        let wi = message_schedule m i in
+        let update = compression_update hash (K i) wi in
+        compression (i + 1) update m
+      else 
+        hash`;;
 
+(*
 let add8 = define
  `add8 (a:int64,b:int64,c:int64,d:int64,e:int64,f:int64,g:int64,h:int64)
         (a',b',c',d',e',f',g',h') =
        (a+a',b+b',c+c',d+d',e+e',f+f',g+g',h+h')`;;
+*)
+
+let add8 = define 
+ `add8 hash hash' = 
+  let a = SHA512_A hash in
+  let b = SHA512_B hash in
+  let c = SHA512_C hash in
+  let d = SHA512_D hash in
+  let e = SHA512_E hash in
+  let f = SHA512_F hash in
+  let g = SHA512_G hash in
+  let h = SHA512_H hash in
+  let a' = SHA512_A hash' in
+  let b' = SHA512_B hash' in
+  let c' = SHA512_C hash' in
+  let d' = SHA512_D hash' in
+  let e' = SHA512_E hash' in
+  let f' = SHA512_F hash' in
+  let g' = SHA512_G hash' in
+  let h' = SHA512_H hash' in
+  (a+a',b+b',c+c',d+d',e+e',f+f',g+g',h+h')`;;
 
 let sha512_block = define
  `sha512_block (m:num->int64) hash =
@@ -205,6 +263,7 @@ let sha512 = define
     if i = 0 then h_init
     else sha512_block (m (i - 1)) (sha512 m (i - 1))`;;
 
+(*
 let sha512_iter = new_definition
  `sha512_iter (w:num->int64) (a,b,c,d,e,f,g,h) (i:num) =
     let t1 = compression_t1 e f g h (K i) (w i) in
@@ -224,6 +283,7 @@ let sha512_alt = define
  `sha512_alt (m:num->num->int64) (i:num) =
     if i = 0 then h_init
     else sha_block (m (i - 1)) (sha512_alt m (i - 1))`;;    
+*)
 
 (* --------------------------------------------------------------- *)
 (*     Conversions for reducing SHA512 specification functions     *)
@@ -293,7 +353,7 @@ let COMPRESSION_T1_RED_CONV =
   DEPTH_CONV Ch_RED_CONV THENC
   DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;  
 
-(* let tmp = COMPRESSION_T1_RED_CONV `compression_t1 (word 0xaa) (word 0xbb) (word 0xcc) (word 0xdd) (word 0xee) (word 0xff)`;; *)
+(* let tmp = COMPRESSION_T1_RED_CONV `compression_t1 (word 0xaa) (word 0xbb) (word 0xcc) (word 0xdd)`;; *)
 
 let COMPRESSION_T2_RED_CONV =
   REWR_CONV compression_t2 THENC
@@ -305,11 +365,14 @@ let COMPRESSION_T2_RED_CONV =
 
 let compression_update_RED_CONV =
   REWR_CONV compression_update THENC 
-  REPEATC (RAND_CONV (COMPRESSION_T1_RED_CONV ORELSEC COMPRESSION_T2_RED_CONV) THENC let_CONV) THENC
-  (* K_RED_CONV THENC *)
+  REWRITE_CONV [SHA512_A; SHA512_B; SHA512_C; SHA512_D; SHA512_E; SHA512_F; SHA512_G; SHA512_H] THENC  
+  REPEATC let_CONV THENC 
+  DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV) THENC 
+  TOP_DEPTH_CONV COMPRESSION_T1_RED_CONV THENC 
+  TOP_DEPTH_CONV COMPRESSION_T2_RED_CONV THENC
   DEPTH_CONV (WORD_RED_CONV ORELSEC NUM_RED_CONV);;
 
-(*
+(*  
 let tmp = compression_update_RED_CONV 
   `compression_update 
       (word 0, word 1, word 2, word 3, word 4, word 5, word 6, word 7) 
